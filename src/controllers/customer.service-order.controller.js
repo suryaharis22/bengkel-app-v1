@@ -1,4 +1,7 @@
-import { getCustomerServiceOrder } from "@/services/service-order.service";
+import {
+  getCustomerServiceOrder,
+  getCustomerServiceOrders,
+} from "@/services/service-order.service";
 
 import { serviceOrderIdSchema } from "@/validations/service-order.validation";
 
@@ -30,6 +33,34 @@ function handleControllerError(error, fallbackMessage) {
 }
 
 /**
+ * GET CUSTOMER SERVICE ORDERS
+ *
+ * GET /api/customer/service-orders
+ */
+export async function getCustomerServiceOrdersController(request, auth) {
+  try {
+    const customerId = getAuthUserId(auth);
+
+    if (!customerId) {
+      return errorResponse({
+        code: 401,
+        message: "Unauthorized",
+      });
+    }
+
+    const orders = await getCustomerServiceOrders(customerId);
+
+    return successResponse({
+      code: 200,
+      message: "Service orders retrieved successfully",
+      data: orders,
+    });
+  } catch (error) {
+    return handleControllerError(error, "Failed to retrieve service orders");
+  }
+}
+
+/**
  * GET CUSTOMER SERVICE ORDER DETAIL
  *
  * GET /api/customer/service-orders/[id]
@@ -37,7 +68,6 @@ function handleControllerError(error, fallbackMessage) {
 export async function getCustomerServiceOrderController(orderId, auth) {
   try {
     const customerId = getAuthUserId(auth);
-
     const id = parseId(orderId);
 
     if (!customerId) {
@@ -66,17 +96,7 @@ export async function getCustomerServiceOrderController(orderId, auth) {
       });
     }
 
-    /**
-     * IMPORTANT:
-     *
-     * getCustomerServiceOrder()
-     * menerima parameter:
-     *
-     * serviceOrderId,
-     * customerId
-     *
-     * Jadi jangan dibalik.
-     */
+    // Urutan parameter: serviceOrderId, customerId.
     const order = await getCustomerServiceOrder(id, customerId);
 
     return successResponse({

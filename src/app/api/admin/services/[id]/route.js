@@ -10,6 +10,10 @@ import { errorResponse } from "@/lib/response";
 
 import { handleMiddlewareError } from "@/middleware/error.middleware";
 
+/**
+ * GET /api/admin/services/[id]
+ * Retrieve a workshop service by ID.
+ */
 export async function GET(request, { params }) {
   try {
     const authorization = await requireRole(["admin"]);
@@ -29,6 +33,10 @@ export async function GET(request, { params }) {
   }
 }
 
+/**
+ * PUT /api/admin/services/[id]
+ * Update a workshop service.
+ */
 export async function PUT(request, { params }) {
   try {
     const authorization = await requireRole(["admin"]);
@@ -48,6 +56,10 @@ export async function PUT(request, { params }) {
   }
 }
 
+/**
+ * DELETE /api/admin/services/[id]
+ * Delete a workshop service.
+ */
 export async function DELETE(request, { params }) {
   try {
     const authorization = await requireRole(["admin"]);

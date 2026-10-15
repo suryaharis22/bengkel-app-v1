@@ -10,14 +10,20 @@ import {
 
 import {
   getWorkshopServices,
+  getWorkshopServiceById,
   createNewWorkshopService,
+  updateExistingWorkshopService,
+  deleteExistingWorkshopService,
 } from "@/services/workshop-service.service";
 
 import { errorResponse, successResponse } from "@/lib/response";
 
 /**
- * Get authenticated user ID
+ * ============================================================
+ * HELPER FUNCTIONS
+ * ============================================================
  */
+
 function getAuthUserId(authorization) {
   return (
     authorization?.user?.id ??
@@ -27,9 +33,6 @@ function getAuthUserId(authorization) {
   );
 }
 
-/**
- * Format Zod validation errors
- */
 function getZodErrors(error) {
   if (!error?.issues) {
     return null;
@@ -41,25 +44,17 @@ function getZodErrors(error) {
   }));
 }
 
-/**
- * Validate JSON request body
- */
 function parseJsonBody(body) {
   if (!body || typeof body !== "object" || Array.isArray(body)) {
     const error = new Error("Request body must be a valid JSON object");
-
     error.statusCode = 400;
     error.code = "INVALID_REQUEST_BODY";
-
     throw error;
   }
 
   return body;
 }
 
-/**
- * Validate service order ID
- */
 function parseServiceOrderId(value) {
   const parsed = serviceOrderIdSchema.safeParse({
     id: Number(value),
@@ -67,20 +62,15 @@ function parseServiceOrderId(value) {
 
   if (!parsed.success) {
     const error = new Error("Invalid service order ID");
-
     error.statusCode = 400;
     error.code = "INVALID_SERVICE_ORDER_ID";
     error.details = getZodErrors(parsed.error);
-
     throw error;
   }
 
   return parsed.data.id;
 }
 
-/**
- * Handle controller errors
- */
 function handleControllerError(error, fallbackMessage) {
   if (error?.statusCode) {
     return errorResponse({
@@ -90,10 +80,6 @@ function handleControllerError(error, fallbackMessage) {
     });
   }
 
-  /**
-   * Workshop service menggunakan `status`
-   * sedangkan service order menggunakan `statusCode`.
-   */
   if (error?.status) {
     return errorResponse({
       code: error.status,
@@ -125,20 +111,50 @@ function handleControllerError(error, fallbackMessage) {
   }
 }
 
+function validateServiceName(name) {
+  if (typeof name !== "string" || !name.trim()) {
+    return "Service name is required";
+  }
+
+  if (name.trim().length > 150) {
+    return "Service name must not exceed 150 characters";
+  }
+
+  return null;
+}
+
+function validateServiceDescription(description) {
+  if (
+    description !== undefined &&
+    description !== null &&
+    typeof description !== "string"
+  ) {
+    return "Description must be a string or null";
+  }
+
+  if (typeof description === "string" && description.length > 5000) {
+    return "Description must not exceed 5000 characters";
+  }
+
+  return null;
+}
+
+function validationError(message, field) {
+  return errorResponse({
+    code: 422,
+    message,
+    errors: field ? [{ field, message }] : undefined,
+  });
+}
+
 /**
  * ============================================================
- * WORKSHOP SERVICE
+ * WORKSHOP SERVICES
  * ============================================================
  */
 
 /**
  * GET /api/admin/services
- *
- * Get workshop services with:
- * - search
- * - status
- * - page
- * - per_page
  */
 export async function getAdminWorkshopServicesController(
   request,
@@ -150,15 +166,17 @@ export async function getAdminWorkshopServicesController(
     const { searchParams } = new URL(request.url);
 
     const search = searchParams.get("search") || "";
-
     const status = searchParams.get("status") || undefined;
 
-    const page = Math.max(1, Number(searchParams.get("page") || 1));
+    const rawPage = Number(searchParams.get("page") || 1);
+    const rawPerPage = Number(searchParams.get("per_page") || 10);
 
-    const perPage = Math.min(
-      100,
-      Math.max(1, Number(searchParams.get("per_page") || 10)),
-    );
+    const page = Number.isInteger(rawPage) && rawPage > 0 ? rawPage : 1;
+
+    const perPage =
+      Number.isInteger(rawPerPage) && rawPerPage > 0
+        ? Math.min(100, rawPerPage)
+        : 10;
 
     const result = await getWorkshopServices({
       search,
@@ -179,9 +197,26 @@ export async function getAdminWorkshopServicesController(
 }
 
 /**
+ * GET /api/admin/services/[id]
+ */
+export async function getAdminWorkshopServiceController(id, authorization) {
+  try {
+    getAuthUserId(authorization);
+
+    const service = await getWorkshopServiceById(id);
+
+    return successResponse({
+      code: 200,
+      message: "Workshop service retrieved successfully",
+      data: service,
+    });
+  } catch (error) {
+    return handleControllerError(error, "Failed to retrieve workshop service");
+  }
+}
+
+/**
  * POST /api/admin/services
- *
- * Create new workshop service
  */
 export async function createAdminWorkshopServiceController(
   request,
@@ -192,84 +227,46 @@ export async function createAdminWorkshopServiceController(
 
     const body = parseJsonBody(await request.json());
 
-    const name = String(body.name ?? "").trim();
+    const nameError = validateServiceName(body.name);
 
-    const description =
-      body.description === null || body.description === undefined
-        ? null
-        : String(body.description).trim();
+    if (nameError) {
+      return validationError(nameError, "name");
+    }
+
+    const descriptionError = validateServiceDescription(body.description);
+
+    if (descriptionError) {
+      return validationError(descriptionError, "description");
+    }
+
+    if (body.price === undefined || body.price === null || body.price === "") {
+      return validationError(
+        "Price must be a valid non-negative number",
+        "price",
+      );
+    }
 
     const price = Number(body.price);
 
-    const status = body.status === undefined ? true : Boolean(body.status);
-
-    /**
-     * Validate name
-     */
-    if (!name) {
-      return errorResponse({
-        code: 422,
-        message: "Service name is required",
-        errors: [
-          {
-            field: "name",
-            message: "Service name is required",
-          },
-        ],
-      });
-    }
-
-    if (name.length > 150) {
-      return errorResponse({
-        code: 422,
-        message: "Service name must not exceed 150 characters",
-        errors: [
-          {
-            field: "name",
-            message: "Service name must not exceed 150 characters",
-          },
-        ],
-      });
-    }
-
-    /**
-     * Validate description
-     */
-    if (description && description.length > 5000) {
-      return errorResponse({
-        code: 422,
-        message: "Description must not exceed 5000 characters",
-        errors: [
-          {
-            field: "description",
-            message: "Description must not exceed 5000 characters",
-          },
-        ],
-      });
-    }
-
-    /**
-     * Validate price
-     */
     if (!Number.isFinite(price) || price < 0) {
-      return errorResponse({
-        code: 422,
-        message: "Valid service price is required",
-        errors: [
-          {
-            field: "price",
-            message: "Price must be a valid non-negative number",
-          },
-        ],
-      });
+      return validationError(
+        "Price must be a valid non-negative number",
+        "price",
+      );
     }
 
-    /**
-     * Create service
-     */
+    const status = body.status === undefined ? true : body.status;
+
+    if (typeof status !== "boolean") {
+      return validationError("Status must be true or false", "status");
+    }
+
+    const description =
+      body.description == null ? null : body.description.trim() || null;
+
     const service = await createNewWorkshopService({
-      name,
-      description: description || null,
+      name: body.name.trim(),
+      description,
       price,
       status,
     });
@@ -285,13 +282,122 @@ export async function createAdminWorkshopServiceController(
 }
 
 /**
+ * PUT /api/admin/services/[id]
+ */
+export async function updateAdminWorkshopServiceController(
+  request,
+  id,
+  authorization,
+) {
+  try {
+    getAuthUserId(authorization);
+
+    const body = parseJsonBody(await request.json());
+
+    const allowedFields = ["name", "description", "price", "status"];
+
+    const updateData = {};
+
+    for (const field of allowedFields) {
+      if (Object.prototype.hasOwnProperty.call(body, field)) {
+        updateData[field] = body[field];
+      }
+    }
+
+    if (Object.keys(updateData).length === 0) {
+      return validationError("At least one field must be provided for update");
+    }
+
+    if (Object.prototype.hasOwnProperty.call(updateData, "name")) {
+      const nameError = validateServiceName(updateData.name);
+
+      if (nameError) {
+        return validationError(nameError, "name");
+      }
+
+      updateData.name = updateData.name.trim();
+    }
+
+    if (Object.prototype.hasOwnProperty.call(updateData, "description")) {
+      const descriptionError = validateServiceDescription(
+        updateData.description,
+      );
+
+      if (descriptionError) {
+        return validationError(descriptionError, "description");
+      }
+
+      if (typeof updateData.description === "string") {
+        updateData.description = updateData.description.trim() || null;
+      }
+    }
+
+    if (Object.prototype.hasOwnProperty.call(updateData, "price")) {
+      if (updateData.price === null || updateData.price === "") {
+        return validationError(
+          "Price must be a valid non-negative number",
+          "price",
+        );
+      }
+
+      const price = Number(updateData.price);
+
+      if (!Number.isFinite(price) || price < 0) {
+        return validationError(
+          "Price must be a valid non-negative number",
+          "price",
+        );
+      }
+
+      updateData.price = price;
+    }
+
+    if (
+      Object.prototype.hasOwnProperty.call(updateData, "status") &&
+      typeof updateData.status !== "boolean"
+    ) {
+      return validationError("Status must be true or false", "status");
+    }
+
+    const service = await updateExistingWorkshopService(id, updateData);
+
+    return successResponse({
+      code: 200,
+      message: "Workshop service updated successfully",
+      data: service,
+    });
+  } catch (error) {
+    return handleControllerError(error, "Failed to update workshop service");
+  }
+}
+
+/**
+ * DELETE /api/admin/services/[id]
+ */
+export async function deleteAdminWorkshopServiceController(id, authorization) {
+  try {
+    getAuthUserId(authorization);
+
+    const deletedService = await deleteExistingWorkshopService(id);
+
+    return successResponse({
+      code: 200,
+      message: "Workshop service deleted successfully",
+      data: deletedService ?? null,
+    });
+  } catch (error) {
+    return handleControllerError(error, "Failed to delete workshop service");
+  }
+}
+
+/**
  * ============================================================
- * SERVICE ORDER
+ * SERVICE ORDERS
  * ============================================================
  */
 
 /**
- * Get Admin Service Order
+ * Retrieve an admin service order.
  */
 export async function getAdminServiceOrderController(
   serviceOrderId,
@@ -315,7 +421,7 @@ export async function getAdminServiceOrderController(
 }
 
 /**
- * Add Spare Part to Service Order
+ * Add a spare part to a service order.
  */
 export async function addAdminServiceOrderSparePartController(
   request,
