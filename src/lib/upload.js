@@ -1,5 +1,3 @@
-import path from "path";
-
 export const UPLOAD_CONFIG = {
   categories: {
     directory: "categories",
@@ -29,26 +27,6 @@ export function getUploadConfig(folder) {
   return UPLOAD_CONFIG[folder] || null;
 }
 
-export function getUploadDirectory(folder) {
-  const config = getUploadConfig(folder);
-
-  if (!config) {
-    throw new Error(`Invalid upload folder: ${folder}`);
-  }
-
-  return path.join(process.cwd(), "public", "uploads", config.directory);
-}
-
-export function getPublicImageUrl(folder, fileName) {
-  const config = getUploadConfig(folder);
-
-  if (!config) {
-    throw new Error(`Invalid upload folder: ${folder}`);
-  }
-
-  return `/uploads/${config.directory}/${fileName}`;
-}
-
 export function validateImageFile(file) {
   if (!file) {
     return {
@@ -57,7 +35,7 @@ export function validateImageFile(file) {
     };
   }
 
-  if (!(file instanceof File)) {
+  if (typeof File === "undefined" || !(file instanceof File)) {
     return {
       valid: false,
       message: "Invalid image file.",
