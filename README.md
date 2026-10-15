@@ -1,36 +1,74 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://github.com/vercel/next.js/tree/canary/packages/create-next-app).
+Getting Started
 
-## Getting Started
+Ikuti langkah berikut untuk menjalankan project secara lokal.
 
-First, run the development server:
+1. Install Dependencies
 
-```bash
+npm install
+
+2. Konfigurasi Environment
+
+Buat file .env di root project dan sesuaikan konfigurasi database PostgreSQL kamu.
+
+DATABASE_URL="postgresql://USER:PASSWORD@localhost:5432/bengkel_db?schema=public"
+
+Ganti USER, PASSWORD, dan bengkel_db sesuai konfigurasi PostgreSQL yang digunakan.
+
+3. Jalankan Migrasi Database
+
+Jika konfigurasi Prisma sudah tersedia, jalankan:
+
+npx prisma migrate dev
+
+Untuk membuka Prisma Studio:
+
+npx prisma studio
+
+4. Jalankan Development Server
+
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Buka http://localhost:3000 di browser.
 
-You can start editing the page by modifying `app/page.js`. The page auto-updates as you edit the file.
+Tech Stack
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Next.js — React framework untuk aplikasi web.
 
-## Learn More
+Prisma ORM — ORM untuk mengelola database.
 
-To learn more about Next.js, take a look at the following resources:
+PostgreSQL — Sistem manajemen database relasional.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Node.js — Runtime JavaScript.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Project Structure
 
-## Deploy on Vercel
+Struktur folder dapat berbeda sesuai implementasi project.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+bengkel-app-v1/
+├── app/
+├── prisma/
+├── public/
+├── .env
+├── package.json
+├── prisma.config.ts
+└── README.md
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+File prisma.config.ts hanya diperlukan jika digunakan oleh konfigurasi Prisma project kamu.
+
+Learn More
+
+Next.js Documentation
+
+Prisma Documentation
+
+PostgreSQL Documentation
+
+Deployment
+
+Aplikasi Next.js dapat di-deploy menggunakan Vercel.
+
+Pelajari lebih lanjut di Next.js Deployment Documentation.
+
+Repository
+
+GitHub: https://github.com/suryaharis22/bengkel-app-v1
