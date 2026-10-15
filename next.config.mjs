@@ -1,8 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  allowedDevOrigins: [
-    "2e54-2404-8000-1555-3821-487c-3b2f-59f8-651.ngrok-free.app",
-  ],
+  allowedDevOrigins: ["bengkel-app-v1.vercel.app"],
 };
 
 export default nextConfig;
