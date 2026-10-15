@@ -996,6 +996,9 @@ export default function SparePartTable() {
         open={formOpen}
         mode={editingSparePart ? "edit" : "create"}
         sparePart={editingSparePart}
+        categories={categories}
+        brands={brands}
+        loading={loading}
         onClose={handleCloseForm}
         onSubmit={handleSubmitForm}
       />
