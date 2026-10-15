@@ -1,0 +1,646 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================================
+// ENUMS
+// ============================================================
+
+enum Role {
+  admin
+  teknisi
+  customer
+}
+
+enum SparePartStatus {
+  draft
+  active
+  inactive
+}
+
+enum SaleStatus {
+  completed
+  cancelled
+  refunded
+}
+
+enum SalePaymentStatus {
+  unpaid
+  partial
+  paid
+  refunded
+}
+
+enum PaymentMethod {
+  cash
+  qris
+  transfer
+  debit
+  ewallet
+}
+
+enum ServiceBookingStatus {
+  pending
+  confirmed
+  technician_confirmed
+  rejected
+  cancelled
+}
+
+enum ServiceOrderStatus {
+  pending
+  confirmed
+  in_progress
+  completed
+  cancelled
+}
+
+enum ServicePaymentStatus {
+  unpaid
+  partial
+  paid
+  refunded
+}
+
+enum ServicePaymentProvider {
+  cash
+  midtrans
+}
+
+// ============================================================
+// USER
+// ============================================================
+
+model User {
+  id       Int     @id @default(autoincrement())
+  username String  @unique @db.VarChar(100)
+  email    String  @unique @db.VarChar(150)
+  no_hp    String? @db.VarChar(30)
+  password String  @db.VarChar(255)
+  role     Role    @default(customer)
+
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  vehicles Vehicle[]
+
+  cashier_sales  Sale[] @relation("CashierSales")
+  customer_sales Sale[] @relation("CustomerSales")
+
+  service_bookings ServiceBooking[] @relation("CustomerServiceBookings")
+
+  technician_orders ServiceOrder[] @relation("TechnicianServiceOrders")
+
+  confirmed_service_orders ServiceOrder[] @relation("ConfirmedBy")
+
+  @@index([role])
+  @@index([no_hp])
+  @@map("users")
+}
+
+// ============================================================
+// VEHICLE
+// ============================================================
+
+model Vehicle {
+  id Int @id @default(autoincrement())
+
+  user_id Int?
+
+  plate_number String  @db.VarChar(20)
+  brand        String  @db.VarChar(100)
+  model        String  @db.VarChar(100)
+  year         Int?
+  color        String? @db.VarChar(50)
+
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  user User? @relation(fields: [user_id], references: [id], onDelete: SetNull)
+
+  service_bookings ServiceBooking[]
+
+  @@index([user_id])
+  @@index([plate_number])
+  @@map("vehicles")
+}
+
+// ============================================================
+// SPARE PART CATEGORY
+// ============================================================
+
+model SparePartCategory {
+  id Int @id @default(autoincrement())
+
+  parent_id Int?
+
+  name        String  @db.VarChar(100)
+  slug        String  @unique @db.VarChar(120)
+  description String? @db.Text
+  image_url   String? @db.VarChar(255)
+
+  sort_order Int     @default(0)
+  status     Boolean @default(true)
+
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  parent   SparePartCategory?  @relation("CategoryChildren", fields: [parent_id], references: [id], onDelete: SetNull)
+  children SparePartCategory[] @relation("CategoryChildren")
+
+  spare_parts SparePart[]
+
+  @@index([parent_id])
+  @@index([status])
+  @@index([sort_order])
+  @@map("spare_part_categories")
+}
+
+// ============================================================
+// BRAND
+// ============================================================
+
+model Brand {
+  id Int @id @default(autoincrement())
+
+  name String @unique @db.VarChar(100)
+  slug String @unique @db.VarChar(120)
+
+  logo_url    String? @db.VarChar(255)
+  description String? @db.Text
+
+  status Boolean @default(true)
+
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  spare_parts SparePart[]
+
+  @@index([status])
+  @@map("brands")
+}
+
+// ============================================================
+// SPARE PART
+// ============================================================
+
+model SparePart {
+  id Int @id @default(autoincrement())
+
+  category_id Int
+  brand_id    Int
+
+  name String @db.VarChar(150)
+  slug String @unique @db.VarChar(180)
+
+  sku         String  @unique @db.VarChar(50)
+  part_number String? @db.VarChar(100)
+
+  description       String? @db.Text
+  short_description String? @db.VarChar(255)
+
+  price         Decimal  @db.Decimal(15, 2)
+  compare_price Decimal? @db.Decimal(15, 2)
+  cost_price    Decimal? @db.Decimal(15, 2)
+
+  weight Decimal? @db.Decimal(10, 2)
+
+  status      SparePartStatus @default(draft)
+  is_featured Boolean         @default(false)
+
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  category SparePartCategory @relation(fields: [category_id], references: [id], onDelete: Restrict)
+
+  brand Brand @relation(fields: [brand_id], references: [id], onDelete: Restrict)
+
+  images   SparePartImage[]
+  variants SparePartVariant[]
+
+  service_order_items ServiceOrderSparePart[]
+
+  @@index([category_id])
+  @@index([brand_id])
+  @@index([status])
+  @@index([is_featured])
+  @@index([name])
+  @@map("spare_parts")
+}
+
+// ============================================================
+// SPARE PART IMAGE
+// ============================================================
+
+model SparePartImage {
+  id Int @id @default(autoincrement())
+
+  spare_part_id Int
+
+  image_url String @db.VarChar(255)
+
+  sort_order Int     @default(0)
+  is_primary Boolean @default(false)
+
+  created_at DateTime @default(now())
+
+  spare_part SparePart @relation(fields: [spare_part_id], references: [id], onDelete: Cascade)
+
+  @@index([spare_part_id])
+  @@index([sort_order])
+  @@index([is_primary])
+  @@map("spare_part_images")
+}
+
+// ============================================================
+// SPARE PART VARIANT
+// ============================================================
+
+model SparePartVariant {
+  id Int @id @default(autoincrement())
+
+  spare_part_id Int
+
+  name String @db.VarChar(100)
+  sku  String @unique @db.VarChar(50)
+
+  price         Decimal  @db.Decimal(15, 2)
+  compare_price Decimal? @db.Decimal(15, 2)
+  cost_price    Decimal? @db.Decimal(15, 2)
+
+  weight Decimal? @db.Decimal(10, 2)
+
+  status Boolean @default(true)
+
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  spare_part SparePart @relation(fields: [spare_part_id], references: [id], onDelete: Cascade)
+
+  stock SparePartStock?
+
+  sale_items SaleItem[]
+
+  service_order_items ServiceOrderSparePart[]
+
+  @@index([spare_part_id])
+  @@index([status])
+  @@map("spare_part_variants")
+}
+
+// ============================================================
+// SPARE PART STOCK
+// ============================================================
+
+model SparePartStock {
+  id Int @id @default(autoincrement())
+
+  variant_id Int @unique
+
+  stock          Int @default(0)
+  reserved_stock Int @default(0)
+  minimum_stock  Int @default(0)
+
+  updated_at DateTime @updatedAt
+
+  variant SparePartVariant @relation(fields: [variant_id], references: [id], onDelete: Cascade)
+
+  @@index([stock])
+  @@index([minimum_stock])
+  @@map("spare_part_stocks")
+}
+
+// ============================================================
+// SALE
+// ============================================================
+
+model Sale {
+  id Int @id @default(autoincrement())
+
+  invoice_number String @unique @db.VarChar(50)
+
+  cashier_id  Int
+  customer_id Int?
+
+  customer_name  String? @db.VarChar(100)
+  customer_phone String? @db.VarChar(30)
+
+  subtotal      Decimal @db.Decimal(15, 2)
+  discount      Decimal @default(0) @db.Decimal(15, 2)
+  tax           Decimal @default(0) @db.Decimal(15, 2)
+  grand_total   Decimal @db.Decimal(15, 2)
+  payment_fee   Decimal @default(0) @db.Decimal(15, 2)
+  paid_amount   Decimal @default(0) @db.Decimal(15, 2)
+  change_amount Decimal @default(0) @db.Decimal(15, 2)
+
+  payment_status SalePaymentStatus @default(unpaid)
+  status         SaleStatus        @default(completed)
+
+  midtrans_order_id           String? @unique @db.VarChar(50)
+  midtrans_transaction_id     String? @db.VarChar(100)
+  midtrans_payment_type       String? @db.VarChar(50)
+  midtrans_transaction_status String? @db.VarChar(30)
+
+  notes String? @db.Text
+
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  cashier User @relation("CashierSales", fields: [cashier_id], references: [id], onDelete: Restrict)
+
+  customer User? @relation("CustomerSales", fields: [customer_id], references: [id], onDelete: SetNull)
+
+  items    SaleItem[]
+  payments SalePayment[]
+
+  @@index([cashier_id])
+  @@index([customer_id])
+  @@index([payment_status])
+  @@index([status])
+  @@index([created_at])
+  @@map("sales")
+}
+
+// ============================================================
+// SALE ITEM
+// ============================================================
+
+model SaleItem {
+  id Int @id @default(autoincrement())
+
+  sale_id    Int
+  variant_id Int
+
+  name String @db.VarChar(150)
+  sku  String @db.VarChar(50)
+
+  quantity Int
+
+  unit_price Decimal @db.Decimal(15, 2)
+  discount   Decimal @default(0) @db.Decimal(15, 2)
+  subtotal   Decimal @db.Decimal(15, 2)
+
+  created_at DateTime @default(now())
+
+  sale Sale @relation(fields: [sale_id], references: [id], onDelete: Cascade)
+
+  variant SparePartVariant @relation(fields: [variant_id], references: [id], onDelete: Restrict)
+
+  @@index([sale_id])
+  @@index([variant_id])
+  @@map("sale_items")
+}
+
+// ============================================================
+// SALE PAYMENT
+// ============================================================
+
+model SalePayment {
+  id Int @id @default(autoincrement())
+
+  sale_id Int
+
+  payment_method PaymentMethod
+
+  amount Decimal @db.Decimal(15, 2)
+
+  reference_number String? @db.VarChar(100)
+
+  paid_at    DateTime @default(now())
+  created_at DateTime @default(now())
+
+  sale Sale @relation(fields: [sale_id], references: [id], onDelete: Cascade)
+
+  @@index([sale_id])
+  @@index([payment_method])
+  @@index([paid_at])
+  @@map("sale_payments")
+}
+
+// ============================================================
+// WORKSHOP SERVICE
+// ============================================================
+
+model WorkshopService {
+  id Int @id @default(autoincrement())
+
+  name        String  @db.VarChar(150)
+  description String? @db.Text
+
+  price Decimal @db.Decimal(15, 2)
+
+  status Boolean @default(true)
+
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  order_items ServiceOrderItem[]
+
+  @@index([status])
+  @@index([name])
+  @@map("workshop_services")
+}
+
+// ============================================================
+// SERVICE BOOKING
+// ============================================================
+
+model ServiceBooking {
+  id Int @id @default(autoincrement())
+
+  booking_number String @unique @db.VarChar(50)
+
+  customer_id Int?
+  vehicle_id  Int
+
+  customer_name  String @db.VarChar(100)
+  customer_phone String @db.VarChar(30)
+
+  complaint String  @db.Text
+  notes     String? @db.Text
+
+  scheduled_at DateTime
+
+  status ServiceBookingStatus @default(pending)
+
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  customer User? @relation("CustomerServiceBookings", fields: [customer_id], references: [id], onDelete: SetNull)
+
+  vehicle Vehicle @relation(fields: [vehicle_id], references: [id], onDelete: Restrict)
+
+  service_order ServiceOrder?
+
+  @@index([customer_id])
+  @@index([vehicle_id])
+  @@index([status])
+  @@index([scheduled_at])
+  @@index([customer_phone])
+  @@map("service_bookings")
+}
+
+// ============================================================
+// SERVICE ORDER
+// ============================================================
+
+model ServiceOrder {
+  id Int @id @default(autoincrement())
+
+  order_number String @unique @db.VarChar(50)
+
+  booking_id Int @unique
+
+  technician_id   Int?
+  confirmed_by_id Int?
+
+  complaint String  @db.Text
+  diagnosis String? @db.Text
+  notes     String? @db.Text
+
+  subtotal      Decimal @db.Decimal(15, 2)
+  discount      Decimal @default(0) @db.Decimal(15, 2)
+  tax           Decimal @default(0) @db.Decimal(15, 2)
+  grand_total   Decimal @db.Decimal(15, 2)
+  payment_fee   Decimal @default(0) @db.Decimal(15, 2)
+  paid_amount   Decimal @default(0) @db.Decimal(15, 2)
+  change_amount Decimal @default(0) @db.Decimal(15, 2)
+
+  payment_status ServicePaymentStatus @default(unpaid)
+  status         ServiceOrderStatus   @default(pending)
+
+  midtrans_order_id           String? @unique @db.VarChar(50)
+  midtrans_transaction_id     String? @db.VarChar(100)
+  midtrans_payment_type       String? @db.VarChar(50)
+  midtrans_transaction_status String? @db.VarChar(30)
+
+  confirmed_at DateTime?
+  started_at   DateTime?
+  completed_at DateTime?
+  cancelled_at DateTime?
+
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  booking ServiceBooking @relation(fields: [booking_id], references: [id], onDelete: Cascade)
+
+  technician User? @relation("TechnicianServiceOrders", fields: [technician_id], references: [id], onDelete: SetNull)
+
+  confirmed_by User? @relation("ConfirmedBy", fields: [confirmed_by_id], references: [id], onDelete: SetNull)
+
+  service_items    ServiceOrderItem[]
+  spare_part_items ServiceOrderSparePart[]
+  payments         ServicePayment[]
+
+  @@index([technician_id])
+  @@index([confirmed_by_id])
+  @@index([payment_status])
+  @@index([status])
+  @@index([created_at])
+  @@map("service_orders")
+}
+
+// ============================================================
+// SERVICE ORDER ITEM
+// ============================================================
+
+model ServiceOrderItem {
+  id Int @id @default(autoincrement())
+
+  service_order_id Int
+  service_id       Int
+
+  name String @db.VarChar(150)
+
+  quantity Int
+
+  unit_price Decimal @db.Decimal(15, 2)
+  discount   Decimal @default(0) @db.Decimal(15, 2)
+  subtotal   Decimal @db.Decimal(15, 2)
+
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  service_order ServiceOrder @relation(fields: [service_order_id], references: [id], onDelete: Cascade)
+
+  service WorkshopService @relation(fields: [service_id], references: [id], onDelete: Restrict)
+
+  @@index([service_order_id])
+  @@index([service_id])
+  @@map("service_order_items")
+}
+
+// ============================================================
+// SERVICE ORDER SPARE PART
+// ============================================================
+
+model ServiceOrderSparePart {
+  id Int @id @default(autoincrement())
+
+  service_order_id Int
+  spare_part_id    Int
+  variant_id       Int
+
+  name String @db.VarChar(150)
+  sku  String @db.VarChar(50)
+
+  quantity Int
+
+  unit_price Decimal @db.Decimal(15, 2)
+  discount   Decimal @default(0) @db.Decimal(15, 2)
+  subtotal   Decimal @db.Decimal(15, 2)
+
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  service_order ServiceOrder @relation(fields: [service_order_id], references: [id], onDelete: Cascade)
+
+  spare_part SparePart @relation(fields: [spare_part_id], references: [id], onDelete: Restrict)
+
+  variant SparePartVariant @relation(fields: [variant_id], references: [id], onDelete: Restrict)
+
+  @@index([service_order_id])
+  @@index([spare_part_id])
+  @@index([variant_id])
+  @@map("service_order_spare_parts")
+}
+
+// ============================================================
+// SERVICE PAYMENT
+// ============================================================
+
+model ServicePayment {
+  id Int @id @default(autoincrement())
+
+  service_order_id Int
+
+  payment_method PaymentMethod
+
+  provider ServicePaymentProvider @default(cash)
+
+  amount Decimal @db.Decimal(15, 2)
+
+  reference_number String? @db.VarChar(100)
+
+  midtrans_order_id           String? @db.VarChar(50)
+  midtrans_transaction_id     String? @db.VarChar(100)
+  midtrans_payment_type       String? @db.VarChar(50)
+  midtrans_transaction_status String? @db.VarChar(30)
+
+  paid_at    DateTime @default(now())
+  created_at DateTime @default(now())
+
+  service_order ServiceOrder @relation(fields: [service_order_id], references: [id], onDelete: Cascade)
+
+  @@index([service_order_id])
+  @@index([payment_method])
+  @@index([provider])
+  @@index([paid_at])
+  @@index([midtrans_transaction_id])
+  @@map("service_payments")
+}
