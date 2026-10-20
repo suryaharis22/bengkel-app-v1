@@ -72,9 +72,9 @@ export async function proxy(request) {
 
   if (user.role !== requiredRole) {
     const dashboardRoutes = {
-      admin: "/admin/dashboard",
-      teknisi: "/teknisi/dashboard",
-      customer: "/customer/dashboard",
+      admin: "/admin",
+      teknisi: "/teknisi",
+      customer: "/customer",
     };
 
     const userDashboard = dashboardRoutes[user.role];

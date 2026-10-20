@@ -65,15 +65,11 @@ function getMetaFromResponse(response) {
 }
 
 function formatDate(value) {
-  if (!value) {
-    return "-";
-  }
+  if (!value) return "-";
 
   const date = new Date(value);
 
-  if (Number.isNaN(date.getTime())) {
-    return "-";
-  }
+  if (Number.isNaN(date.getTime())) return "-";
 
   return new Intl.DateTimeFormat("id-ID", {
     day: "2-digit",
@@ -96,9 +92,7 @@ function getCustomerName(vehicle) {
   const customer = vehicle?.customer;
 
   if (customer && typeof customer === "object") {
-    return (
-      customer?.name || customer?.username || customer?.email || "Customer"
-    );
+    return customer.name || customer.username || customer.email || "Customer";
   }
 
   if (vehicle?.user_id !== null && vehicle?.user_id !== undefined) {
@@ -112,7 +106,7 @@ function getCustomerEmail(vehicle) {
   const customer = vehicle?.customer;
 
   if (customer && typeof customer === "object") {
-    return customer?.email || null;
+    return customer.email || null;
   }
 
   return null;
@@ -121,26 +115,27 @@ function getCustomerEmail(vehicle) {
 function getBookingCount(vehicle) {
   const count = Number(vehicle?.booking_count);
 
-  if (!Number.isFinite(count)) {
-    return 0;
-  }
-
-  return count;
+  return Number.isFinite(count) && count >= 0 ? count : 0;
 }
 
 function VehicleTypeBadge({ vehicle }) {
   const type = getVehicleType(vehicle);
-  const isCustomer = type === "Customer";
+  const isCustomer = type.toLowerCase() === "customer";
 
   return (
     <span
       className={[
-        "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1",
+        "inline-flex w-fit shrink-0 items-center gap-1.5",
+        "whitespace-nowrap rounded-full px-2.5 py-1",
         "text-xs font-medium",
         isCustomer ? "bg-blue-50 text-blue-700" : "bg-gray-100 text-gray-600",
       ].join(" ")}
     >
-      {isCustomer ? <UsersRound size={13} /> : <Motorbike size={13} />}
+      {isCustomer ? (
+        <UsersRound size={13} aria-hidden="true" />
+      ) : (
+        <Motorbike size={13} aria-hidden="true" />
+      )}
 
       {type}
     </span>
@@ -151,116 +146,85 @@ function VehicleMobileCard({ vehicle, onView, onEdit, onDelete }) {
   const customerName = getCustomerName(vehicle);
   const bookingCount = getBookingCount(vehicle);
 
+  const details = [
+    { label: "Owner", value: customerName },
+    { label: "Services", value: bookingCount },
+    { label: "Year", value: vehicle?.year || "-" },
+    { label: "Color", value: vehicle?.color || "-" },
+  ];
+
   return (
-    <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <div className="flex items-center gap-2">
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-red-50 text-red-600">
-              <Motorbike size={18} />
-            </div>
+    <article className="w-full min-w-0 rounded-xl border border-gray-200 bg-white p-4 shadow-sm transition-shadow hover:shadow-md">
+      <div className="flex min-w-0 items-start justify-between gap-3">
+        <div className="flex min-w-0 items-center gap-3">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-red-50 text-red-600">
+            <Motorbike size={20} aria-hidden="true" />
+          </div>
 
-            <div className="min-w-0">
-              <p className="truncate text-sm font-semibold text-gray-900">
-                {vehicle?.plate_number || "-"}
-              </p>
+          <div className="min-w-0">
+            <h3 className="truncate text-sm font-semibold text-gray-900">
+              {vehicle?.plate_number || "-"}
+            </h3>
 
-              <p className="truncate text-xs text-gray-500">
-                {vehicle?.brand || "-"} {vehicle?.model || ""}
-              </p>
-            </div>
+            <p className="mt-0.5 truncate text-xs text-gray-500">
+              {[vehicle?.brand, vehicle?.model].filter(Boolean).join(" ") ||
+                "-"}
+            </p>
           </div>
         </div>
 
         <VehicleTypeBadge vehicle={vehicle} />
       </div>
 
-      <div className="mt-4 grid grid-cols-2 gap-3">
-        <div className="rounded-lg bg-gray-50 p-3">
-          <p className="text-[11px] font-medium uppercase tracking-wide text-gray-400">
-            Owner
-          </p>
+      <div className="mt-4 grid grid-cols-2 gap-2.5">
+        {details.map((detail) => (
+          <div
+            key={detail.label}
+            className="min-w-0 rounded-lg border border-gray-100 bg-gray-50/80 p-3"
+          >
+            <p className="text-[11px] font-medium uppercase tracking-wide text-gray-400">
+              {detail.label}
+            </p>
 
-          <p className="mt-1 truncate text-sm font-medium text-gray-800">
-            {customerName}
-          </p>
-        </div>
-
-        <div className="rounded-lg bg-gray-50 p-3">
-          <p className="text-[11px] font-medium uppercase tracking-wide text-gray-400">
-            Services
-          </p>
-
-          <p className="mt-1 text-sm font-medium text-gray-800">
-            {bookingCount}
-          </p>
-        </div>
-
-        <div className="rounded-lg bg-gray-50 p-3">
-          <p className="text-[11px] font-medium uppercase tracking-wide text-gray-400">
-            Year
-          </p>
-
-          <p className="mt-1 text-sm font-medium text-gray-800">
-            {vehicle?.year || "-"}
-          </p>
-        </div>
-
-        <div className="rounded-lg bg-gray-50 p-3">
-          <p className="text-[11px] font-medium uppercase tracking-wide text-gray-400">
-            Color
-          </p>
-
-          <p className="mt-1 truncate text-sm font-medium text-gray-800">
-            {vehicle?.color || "-"}
-          </p>
-        </div>
+            <p className="mt-1 truncate text-sm font-medium text-gray-800">
+              {detail.value}
+            </p>
+          </div>
+        ))}
       </div>
 
-      <div className="mt-4 flex items-center justify-end gap-2 border-t border-gray-100 pt-3">
+      <div className="mt-4 flex flex-wrap items-center justify-end gap-2 border-t border-gray-100 pt-3">
         <button
           type="button"
           onClick={() => onView?.(vehicle)}
-          className={[
-            "inline-flex h-9 items-center justify-center gap-1.5",
-            "rounded-lg border border-gray-200 bg-white px-3",
-            "text-xs font-medium text-gray-700",
-            "transition hover:bg-gray-50",
-          ].join(" ")}
+          aria-label={`View vehicle ${vehicle?.plate_number || ""}`}
+          className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 text-xs font-medium text-gray-700 transition hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500"
         >
-          <Eye size={14} />
+          <Eye size={14} aria-hidden="true" />
           View
         </button>
 
         <button
           type="button"
           onClick={() => onEdit?.(vehicle)}
-          className={[
-            "inline-flex h-9 items-center justify-center gap-1.5",
-            "rounded-lg border border-gray-200 bg-white px-3",
-            "text-xs font-medium text-gray-700",
-            "transition hover:bg-gray-50",
-          ].join(" ")}
+          aria-label={`Edit vehicle ${vehicle?.plate_number || ""}`}
+          className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 text-xs font-medium text-gray-700 transition hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500"
         >
-          <Edit size={14} />
+          <Edit size={14} aria-hidden="true" />
           Edit
         </button>
 
         <button
           type="button"
           onClick={() => onDelete?.(vehicle)}
-          className={[
-            "inline-flex h-9 items-center justify-center gap-1.5",
-            "rounded-lg border border-red-100 bg-red-50 px-3",
-            "text-xs font-medium text-red-600",
-            "transition hover:bg-red-100",
-          ].join(" ")}
+          aria-label={`Delete vehicle ${vehicle?.plate_number || ""}`}
+          className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg border border-red-100 bg-red-50 px-3 text-xs font-medium text-red-600 transition hover:bg-red-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500"
         >
-          <Trash2 size={14} />
+          <Trash2 size={14} aria-hidden="true" />
           Delete
         </button>
       </div>
-    </div>
+    </article>
   );
 }
 
@@ -285,9 +249,9 @@ export default function VehicleTable() {
     let cancelled = false;
 
     async function loadVehicles() {
-      try {
-        setLoading(true);
+      setLoading(true);
 
+      try {
         const params = new URLSearchParams({
           page: String(page),
           per_page: String(PER_PAGE),
@@ -299,9 +263,7 @@ export default function VehicleTable() {
 
         const response = await api.get(`/admin/vehicles?${params.toString()}`);
 
-        if (cancelled) {
-          return;
-        }
+        if (cancelled) return;
 
         const vehicleData = getVehiclesFromResponse(response);
         const meta = getMetaFromResponse(response);
@@ -312,7 +274,9 @@ export default function VehicleTable() {
         setVehicles(vehicleData);
 
         if (Number.isInteger(responsePage) && responsePage > 0) {
-          setPage(responsePage);
+          setPage((current) =>
+            current === responsePage ? current : responsePage,
+          );
         }
 
         setTotalPages(
@@ -321,9 +285,7 @@ export default function VehicleTable() {
             : 1,
         );
       } catch (error) {
-        if (cancelled) {
-          return;
-        }
+        if (cancelled) return;
 
         console.error("Failed to fetch vehicles:", error);
 
@@ -346,11 +308,11 @@ export default function VehicleTable() {
   }, [page, search, refreshKey]);
 
   const filteredVehicles = useMemo(() => {
-    if (!type) {
-      return vehicles;
-    }
+    if (!type) return vehicles;
 
-    return vehicles.filter((vehicle) => getVehicleType(vehicle) === type);
+    return vehicles.filter(
+      (vehicle) => getVehicleType(vehicle).toLowerCase() === type.toLowerCase(),
+    );
   }, [vehicles, type]);
 
   const columns = useMemo(
@@ -359,18 +321,22 @@ export default function VehicleTable() {
         key: "vehicle",
         label: "Vehicle",
         render: (vehicle) => (
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-red-50 text-red-600">
-              <Motorbike size={19} />
+          <div className="flex min-w-[190px] items-center gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-red-50 text-red-600">
+              <Motorbike size={19} aria-hidden="true" />
             </div>
 
             <div className="min-w-0">
-              <p className="truncate text-sm font-semibold text-gray-900">
+              <p
+                className="truncate text-sm font-semibold text-gray-900"
+                title={vehicle?.plate_number || ""}
+              >
                 {vehicle?.plate_number || "-"}
               </p>
 
-              <p className="truncate text-xs text-gray-500">
-                {vehicle?.brand || "-"} {vehicle?.model || ""}
+              <p className="mt-0.5 truncate text-xs text-gray-500">
+                {[vehicle?.brand, vehicle?.model].filter(Boolean).join(" ") ||
+                  "-"}
               </p>
             </div>
           </div>
@@ -407,14 +373,18 @@ export default function VehicleTable() {
         key: "year",
         label: "Year",
         render: (vehicle) => (
-          <span className="text-sm text-gray-700">{vehicle?.year || "-"}</span>
+          <span className="whitespace-nowrap text-sm text-gray-700">
+            {vehicle?.year || "-"}
+          </span>
         ),
       },
       {
         key: "color",
         label: "Color",
         render: (vehicle) => (
-          <span className="text-sm text-gray-700">{vehicle?.color || "-"}</span>
+          <span className="whitespace-nowrap text-sm text-gray-700">
+            {vehicle?.color || "-"}
+          </span>
         ),
       },
       {
@@ -446,7 +416,6 @@ export default function VehicleTable() {
 
   function handleTypeChange(value) {
     setType(value);
-    setPage(1);
   }
 
   function handleReset() {
@@ -456,58 +425,48 @@ export default function VehicleTable() {
   }
 
   function handleRefresh() {
-    if (loading) {
-      return;
-    }
+    if (loading) return;
 
     setRefreshKey((current) => current + 1);
   }
 
-  function handleView(vehicle) {
-    if (vehicle?.id === null || vehicle?.id === undefined) {
-      toast.error("Vehicle ID not found.");
-      return;
-    }
-
-    const vehicleId = Number(vehicle.id);
+  function getValidVehicleId(vehicle) {
+    const vehicleId = Number(vehicle?.id);
 
     if (!Number.isInteger(vehicleId) || vehicleId <= 0) {
       toast.error("Invalid vehicle ID.");
-      return;
+      return null;
     }
+
+    return vehicleId;
+  }
+
+  function handleView(vehicle) {
+    const vehicleId = getValidVehicleId(vehicle);
+
+    if (vehicleId === null) return;
 
     router.push(`/admin/vehicles/${vehicleId}`);
   }
 
   function handleEdit(vehicle) {
-    if (vehicle?.id === null || vehicle?.id === undefined) {
-      toast.error("Vehicle ID not found.");
-      return;
-    }
+    const vehicleId = getValidVehicleId(vehicle);
 
-    const vehicleId = Number(vehicle.id);
-
-    if (!Number.isInteger(vehicleId) || vehicleId <= 0) {
-      toast.error("Invalid vehicle ID.");
-      return;
-    }
+    if (vehicleId === null) return;
 
     router.push(`/admin/vehicles/${vehicleId}/edit`);
   }
 
   function handleDeleteClick(vehicle) {
-    if (!vehicle?.id) {
-      toast.error("Vehicle ID not found.");
-      return;
-    }
+    const vehicleId = getValidVehicleId(vehicle);
+
+    if (vehicleId === null) return;
 
     setDeleteVehicle(vehicle);
   }
 
   async function handleDeleteConfirm() {
-    if (!deleteVehicle?.id || deleting) {
-      return;
-    }
+    if (!deleteVehicle?.id || deleting) return;
 
     try {
       setDeleting(true);
@@ -515,7 +474,6 @@ export default function VehicleTable() {
       await api.delete(`/admin/vehicles/${deleteVehicle.id}`);
 
       toast.success("Vehicle deleted successfully.");
-
       setDeleteVehicle(null);
 
       if (vehicles.length === 1 && page > 1) {
@@ -533,145 +491,156 @@ export default function VehicleTable() {
   }
 
   return (
-    <div className="space-y-5">
-      {/* PAGE HEADER */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-xl font-bold text-gray-900">Vehicles</h1>
+    <div className="w-full min-w-0 max-w-full space-y-5">
+      {/* Page header */}
+      <header className="flex min-w-0 flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-red-50 text-red-600">
+              <Motorbike size={21} aria-hidden="true" />
+            </div>
 
-          <p className="mt-1 text-sm text-gray-500">
-            Manage customer and guest vehicles.
-          </p>
+            <div className="min-w-0">
+              <h1 className="text-xl font-bold tracking-tight text-gray-900">
+                Vehicles
+              </h1>
+
+              <p className="mt-0.5 text-sm text-gray-500">
+                Manage customer and guest vehicles.
+              </p>
+            </div>
+          </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex w-full items-center gap-2 sm:w-auto">
           <button
             type="button"
             onClick={handleRefresh}
             disabled={loading}
-            className={[
-              "inline-flex h-10 items-center justify-center gap-2",
-              "rounded-lg border border-gray-200 bg-white px-3",
-              "text-sm font-medium text-gray-700 shadow-sm",
-              "transition hover:bg-gray-50",
-              "disabled:cursor-not-allowed disabled:opacity-50",
-            ].join(" ")}
+            className="inline-flex h-10 flex-1 items-center justify-center gap-2 rounded-lg border border-gray-200 bg-white px-3 text-sm font-medium text-gray-700 shadow-sm transition hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 disabled:cursor-not-allowed disabled:opacity-50 sm:flex-none"
           >
-            <RefreshCw size={16} className={loading ? "animate-spin" : ""} />
-
-            <span className="hidden sm:inline">Refresh</span>
+            <RefreshCw
+              size={16}
+              aria-hidden="true"
+              className={loading ? "animate-spin" : ""}
+            />
+            <span>Refresh</span>
           </button>
 
           <button
             type="button"
             onClick={() => router.push("/admin/vehicles/create")}
-            className={[
-              "inline-flex h-10 items-center justify-center gap-2",
-              "rounded-lg bg-red-600 px-4",
-              "text-sm font-medium text-white shadow-sm",
-              "transition hover:bg-red-700",
-            ].join(" ")}
+            className="inline-flex h-10 flex-1 items-center justify-center gap-2 rounded-lg bg-red-600 px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-red-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2 sm:flex-none"
           >
-            <Plus size={17} />
-            Add Vehicle
+            <Plus size={17} aria-hidden="true" />
+            <span>Add Vehicle</span>
           </button>
         </div>
+      </header>
+
+      {/* Filters */}
+      <div className="w-full min-w-0">
+        <VehicleFilter
+          search={search}
+          type={type}
+          onSearchChange={handleSearchChange}
+          onTypeChange={handleTypeChange}
+          onReset={handleReset}
+        />
       </div>
 
-      {/* FILTER */}
-      <VehicleFilter
-        search={search}
-        type={type}
-        onSearchChange={handleSearchChange}
-        onTypeChange={handleTypeChange}
-        onReset={handleReset}
-      />
+      {/* Table and pagination */}
+      <section className="w-full min-w-0 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+        <div className="flex flex-col gap-1 border-b border-gray-100 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-5">
+          <div>
+            <h2 className="text-sm font-semibold text-gray-900">
+              Vehicle List
+            </h2>
+            <p className="mt-0.5 text-xs text-gray-500">
+              View and manage registered vehicles.
+            </p>
+          </div>
 
-      {/* TABLE */}
-      <DataTable
-        columns={columns}
-        data={filteredVehicles}
-        rowKey={(vehicle) => vehicle.id}
-        loading={loading}
-        emptyMessage="No vehicles found"
-        emptyDescription={
-          search || type
-            ? "Try adjusting your search or filter."
-            : "There are no vehicles available yet."
-        }
-        emptyIcon={Motorbike}
-        skeleton={<VehicleTableSkeleton />}
-        renderMobile={(vehicle) => (
-          <VehicleMobileCard
-            vehicle={vehicle}
-            onView={handleView}
-            onEdit={handleEdit}
-            onDelete={handleDeleteClick}
+          <span className="inline-flex w-fit items-center rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-600">
+            {filteredVehicles.length}{" "}
+            {filteredVehicles.length === 1 ? "vehicle" : "vehicles"}
+          </span>
+        </div>
+
+        <div className="w-full min-w-0">
+          <DataTable
+            columns={columns}
+            data={filteredVehicles}
+            rowKey={(vehicle) => vehicle.id}
+            loading={loading}
+            emptyMessage="No vehicles found"
+            emptyDescription={
+              search || type
+                ? "Try adjusting your search or filter."
+                : "There are no vehicles available yet."
+            }
+            emptyIcon={Motorbike}
+            skeleton={<VehicleTableSkeleton />}
+            renderMobile={(vehicle) => (
+              <VehicleMobileCard
+                vehicle={vehicle}
+                onView={handleView}
+                onEdit={handleEdit}
+                onDelete={handleDeleteClick}
+              />
+            )}
+            renderActions={(vehicle) => (
+              <div className="flex min-w-max items-center justify-end gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => handleView(vehicle)}
+                  className="inline-flex h-8 items-center justify-center gap-1.5 rounded-lg border border-gray-200 bg-white px-2.5 text-xs font-medium text-gray-700 transition hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500"
+                  title="View vehicle"
+                  aria-label={`View ${vehicle?.plate_number || "vehicle"}`}
+                >
+                  <Eye size={14} aria-hidden="true" />
+                  View
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleEdit(vehicle)}
+                  className="inline-flex h-8 items-center justify-center gap-1.5 rounded-lg border border-gray-200 bg-white px-2.5 text-xs font-medium text-gray-700 transition hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500"
+                  title="Edit vehicle"
+                  aria-label={`Edit ${vehicle?.plate_number || "vehicle"}`}
+                >
+                  <Edit size={14} aria-hidden="true" />
+                  Edit
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleDeleteClick(vehicle)}
+                  className="inline-flex h-8 items-center justify-center rounded-lg border border-red-100 bg-red-50 px-2.5 text-red-600 transition hover:bg-red-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500"
+                  title="Delete vehicle"
+                  aria-label={`Delete ${vehicle?.plate_number || "vehicle"}`}
+                >
+                  <Trash2 size={14} aria-hidden="true" />
+                </button>
+              </div>
+            )}
+            actionsLabel="Actions"
+            className="min-w-0"
+          />
+        </div>
+
+        {!loading && (
+          <Pagination
+            page={page}
+            totalPages={totalPages}
+            onPageChange={setPage}
+            disabled={loading}
+            showPageInfo
           />
         )}
-        renderActions={(vehicle) => (
-          <div className="flex items-center justify-end gap-1.5">
-            <button
-              type="button"
-              onClick={() => handleView(vehicle)}
-              className={[
-                "inline-flex h-8 items-center justify-center gap-1.5",
-                "rounded-lg border border-gray-200 bg-white px-2.5",
-                "text-xs font-medium text-gray-700",
-                "transition hover:bg-gray-50",
-              ].join(" ")}
-              title="View vehicle"
-            >
-              <Eye size={14} />
-              View
-            </button>
+      </section>
 
-            <button
-              type="button"
-              onClick={() => handleEdit(vehicle)}
-              className={[
-                "inline-flex h-8 items-center justify-center gap-1.5",
-                "rounded-lg border border-gray-200 bg-white px-2.5",
-                "text-xs font-medium text-gray-700",
-                "transition hover:bg-gray-50",
-              ].join(" ")}
-              title="Edit vehicle"
-            >
-              <Edit size={14} />
-              Edit
-            </button>
-
-            <button
-              type="button"
-              onClick={() => handleDeleteClick(vehicle)}
-              className={[
-                "inline-flex h-8 items-center justify-center",
-                "rounded-lg border border-red-100 bg-red-50 px-2.5",
-                "text-red-600",
-                "transition hover:bg-red-100",
-              ].join(" ")}
-              title="Delete vehicle"
-            >
-              <Trash2 size={14} />
-            </button>
-          </div>
-        )}
-        actionsLabel="Actions"
-        className="overflow-hidden"
-      />
-
-      {/* PAGINATION */}
-      {!loading && (
-        <Pagination
-          page={page}
-          totalPages={totalPages}
-          onPageChange={setPage}
-          disabled={loading}
-          showPageInfo
-        />
-      )}
-
-      {/* DELETE MODAL */}
+      {/* Delete confirmation */}
       <VehicleDeleteModal
         open={Boolean(deleteVehicle)}
         vehicle={deleteVehicle}

@@ -201,10 +201,36 @@ const ACTIVE_LINK_CLASS = "bg-red-50 text-red-600 shadow-sm shadow-red-100";
 const INACTIVE_LINK_CLASS =
   "text-slate-600 hover:bg-slate-100 hover:text-slate-900";
 
-function isActivePath(pathname, href) {
+/**
+ * Menyamakan format pathname:
+ * /admin/ menjadi /admin
+ * /admin/users/ menjadi /admin/users
+ */
+function normalizePath(path) {
+  if (!path) return "";
+
+  if (path === "/") return "/";
+
+  return path.replace(/\/+$/, "");
+}
+
+/**
+ * Dashboard harus cocok persis.
+ * Menu lainnya boleh cocok dengan subhalaman.
+ */
+function isActivePath(pathname, href, exact = false) {
   if (!pathname || !href) return false;
 
-  return pathname === href || pathname.startsWith(`${href}/`);
+  const currentPath = normalizePath(pathname);
+  const targetPath = normalizePath(href);
+
+  if (!currentPath || !targetPath) return false;
+
+  if (exact) {
+    return currentPath === targetPath;
+  }
+
+  return currentPath === targetPath || currentPath.startsWith(`${targetPath}/`);
 }
 
 function MenuItem({ menu, pathname, openGroups, toggleGroup, closeSidebar }) {
@@ -212,9 +238,11 @@ function MenuItem({ menu, pathname, openGroups, toggleGroup, closeSidebar }) {
   const hasChildren = Boolean(menu.children?.length);
   const isOpen = openGroups.includes(menu.id);
 
+  const isDashboard = menu.id.endsWith("-dashboard");
+
   const isActive = hasChildren
     ? menu.children.some((child) => isActivePath(pathname, child.href))
-    : isActivePath(pathname, menu.href);
+    : isActivePath(pathname, menu.href, isDashboard);
 
   if (!hasChildren) {
     return (
@@ -308,10 +336,21 @@ function MenuItem({ menu, pathname, openGroups, toggleGroup, closeSidebar }) {
 export default function Sidebar({ role, user }) {
   const pathname = usePathname();
 
-  const [open, setOpen] = useState(false);
+  /*
+   * Simpan pathname ketika sidebar dibuka.
+   * Jika navigasi mengubah pathname, nilai open otomatis
+   * dianggap false tanpa setState di dalam useEffect.
+   */
+  const [mobileState, setMobileState] = useState({
+    pathname: null,
+    isOpen: false,
+  });
+
   const [openGroups, setOpenGroups] = useState([]);
 
   const config = ROLE_CONFIG[role];
+
+  const open = mobileState.pathname === pathname && mobileState.isOpen;
 
   const activeGroups =
     config?.menus
@@ -322,10 +361,10 @@ export default function Sidebar({ role, user }) {
 
   const visibleOpenGroups = [...new Set([...openGroups, ...activeGroups])];
 
-  useEffect(() => {
-    setOpen(false);
-  }, [pathname]);
-
+  /*
+   * Effect ini hanya menyinkronkan scroll body dengan
+   * kondisi sidebar mobile, bukan mengubah React state.
+   */
   useEffect(() => {
     if (!open) return;
 
@@ -339,6 +378,20 @@ export default function Sidebar({ role, user }) {
 
   if (!config) return null;
 
+  function openSidebar() {
+    setMobileState({
+      pathname,
+      isOpen: true,
+    });
+  }
+
+  function closeSidebar() {
+    setMobileState({
+      pathname,
+      isOpen: false,
+    });
+  }
+
   function toggleGroup(id) {
     setOpenGroups((current) =>
       current.includes(id)
@@ -347,17 +400,13 @@ export default function Sidebar({ role, user }) {
     );
   }
 
-  function closeSidebar() {
-    setOpen(false);
-  }
-
   return (
     <>
       {/* Mobile Header */}
       <header className="fixed inset-x-0 top-0 z-40 flex h-16 items-center border-b border-slate-200 bg-white/95 px-4 backdrop-blur-md lg:hidden">
         <button
           type="button"
-          onClick={() => setOpen(true)}
+          onClick={openSidebar}
           aria-label="Buka sidebar"
           aria-expanded={open}
           aria-controls="app-sidebar"

@@ -19,35 +19,16 @@ import { toast } from "sonner";
 
 import api from "@/lib/axios";
 import { getAxiosError } from "@/lib/axios-error";
+import { formatRupiahInput } from "@/lib/format-rupiah";
 
 const CUSTOMER_API = "/admin/users";
 
 const PAYMENT_METHODS = [
-  {
-    value: "cash",
-    label: "Cash",
-    icon: Banknote,
-  },
-  {
-    value: "qris",
-    label: "QRIS",
-    icon: QrCode,
-  },
-  {
-    value: "transfer",
-    label: "Transfer",
-    icon: Receipt,
-  },
-  {
-    value: "debit",
-    label: "Debit",
-    icon: CreditCard,
-  },
-  {
-    value: "ewallet",
-    label: "E-Wallet",
-    icon: Smartphone,
-  },
+  { value: "cash", label: "Cash", icon: Banknote },
+  { value: "qris", label: "QRIS", icon: QrCode },
+  { value: "transfer", label: "Transfer", icon: Receipt },
+  { value: "debit", label: "Debit", icon: CreditCard },
+  { value: "ewallet", label: "E-Wallet", icon: Smartphone },
 ];
 
 function formatRupiah(value) {
@@ -57,12 +38,13 @@ function formatRupiah(value) {
     style: "currency",
     currency: "IDR",
     maximumFractionDigits: 0,
-  }).format(amount);
+  })
+    .format(amount)
+    .replace(/\u00a0/g, " ");
 }
 
 function parseAmount(value) {
-  const normalized = String(value || "").replace(/[^\d]/g, "");
-
+  const normalized = String(value ?? "").replace(/\D/g, "");
   return Number(normalized) || 0;
 }
 
@@ -83,13 +65,8 @@ function getCustomerPhone(customer) {
 function getErrorMessage(error, fallbackMessage) {
   const result = getAxiosError(error, fallbackMessage);
 
-  if (typeof result === "string") {
-    return result;
-  }
-
-  if (result?.message) {
-    return result.message;
-  }
+  if (typeof result === "string") return result;
+  if (result?.message) return result.message;
 
   return fallbackMessage;
 }
@@ -100,13 +77,10 @@ function calculatePaymentFee(paymentMethod, grandTotal) {
   switch (paymentMethod) {
     case "qris":
       return Math.round(amount * 0.007);
-
     case "ewallet":
       return Math.round(amount * 0.02);
-
     case "transfer":
       return 4000;
-
     case "cash":
     case "debit":
     default:
@@ -148,7 +122,7 @@ function getPaymentMethodDescription(paymentMethod) {
       return {
         title: "Bank Transfer / VA",
         description:
-          "A flat payment fee of Rp4.000 is applied. Complete the bank transfer through the Midtrans payment window.",
+          "A flat payment fee of Rp 4.000 is applied. Complete the bank transfer through the Midtrans payment window.",
         className: "border-purple-200 bg-purple-50",
         iconClassName: "text-purple-600",
         titleClassName: "text-purple-900",
@@ -171,6 +145,59 @@ function getPaymentMethodDescription(paymentMethod) {
     default:
       return null;
   }
+}
+
+const inputClassName =
+  "h-11 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900 outline-none transition placeholder:text-gray-400 focus:border-red-500 focus:ring-4 focus:ring-red-50 disabled:cursor-not-allowed disabled:bg-gray-100";
+
+function RupiahInput({
+  id,
+  value,
+  onChange,
+  disabled,
+  placeholder = "0",
+  className = "",
+}) {
+  return (
+    <div className="relative">
+      <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-sm font-medium text-gray-400">
+        Rp
+      </span>
+
+      <input
+        id={id}
+        type="text"
+        inputMode="numeric"
+        autoComplete="off"
+        value={value}
+        onChange={onChange}
+        placeholder={placeholder}
+        disabled={disabled}
+        className={`${inputClassName} pl-10 tabular-nums ${className}`}
+      />
+    </div>
+  );
+}
+
+function SectionHeading({ title, description, icon: Icon }) {
+  return (
+    <div className="mb-4 flex items-center gap-3">
+      {Icon && (
+        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-red-50 text-red-600">
+          <Icon className="h-4 w-4" />
+        </div>
+      )}
+
+      <div className="min-w-0">
+        <h3 className="text-sm font-semibold text-gray-900">{title}</h3>
+        {description && (
+          <p className="mt-0.5 text-xs leading-5 text-gray-500">
+            {description}
+          </p>
+        )}
+      </div>
+    </div>
+  );
 }
 
 export default function CashierCheckoutDialog({
@@ -198,16 +225,11 @@ export default function CashierCheckoutDialog({
   const [paidAmount, setPaidAmount] = useState("");
 
   const [notes, setNotes] = useState("");
-
   const [loading, setLoading] = useState(false);
 
-  const discountAmount = useMemo(() => {
-    return parseAmount(discount);
-  }, [discount]);
+  const discountAmount = useMemo(() => parseAmount(discount), [discount]);
 
-  const taxAmount = useMemo(() => {
-    return parseAmount(tax);
-  }, [tax]);
+  const taxAmount = useMemo(() => parseAmount(tax), [tax]);
 
   const grandTotal = useMemo(() => {
     const result = Number(subtotal || 0) - discountAmount + taxAmount;
@@ -215,38 +237,40 @@ export default function CashierCheckoutDialog({
     return Math.max(result, 0);
   }, [subtotal, discountAmount, taxAmount]);
 
-  const paymentFee = useMemo(() => {
-    return calculatePaymentFee(paymentMethod, grandTotal);
-  }, [paymentMethod, grandTotal]);
+  const paymentFee = useMemo(
+    () => calculatePaymentFee(paymentMethod, grandTotal),
+    [paymentMethod, grandTotal],
+  );
 
-  const amountToPay = useMemo(() => {
-    return grandTotal + paymentFee;
-  }, [grandTotal, paymentFee]);
+  const amountToPay = useMemo(
+    () => grandTotal + paymentFee,
+    [grandTotal, paymentFee],
+  );
 
-  const paidAmountNumber = useMemo(() => {
-    return parseAmount(paidAmount);
-  }, [paidAmount]);
+  const paidAmountNumber = useMemo(() => parseAmount(paidAmount), [paidAmount]);
 
-  const changeAmount = useMemo(() => {
-    return Math.max(paidAmountNumber - amountToPay, 0);
-  }, [paidAmountNumber, amountToPay]);
+  const changeAmount = useMemo(
+    () => Math.max(paidAmountNumber - amountToPay, 0),
+    [paidAmountNumber, amountToPay],
+  );
 
-  const remainingAmount = useMemo(() => {
-    return Math.max(amountToPay - paidAmountNumber, 0);
-  }, [amountToPay, paidAmountNumber]);
+  const remainingAmount = useMemo(
+    () => Math.max(amountToPay - paidAmountNumber, 0),
+    [amountToPay, paidAmountNumber],
+  );
 
-  const midtransPayment = useMemo(() => {
-    return isMidtransPayment(paymentMethod);
-  }, [paymentMethod]);
+  const midtransPayment = useMemo(
+    () => isMidtransPayment(paymentMethod),
+    [paymentMethod],
+  );
 
-  const paymentMethodDescription = useMemo(() => {
-    return getPaymentMethodDescription(paymentMethod);
-  }, [paymentMethod]);
+  const paymentMethodDescription = useMemo(
+    () => getPaymentMethodDescription(paymentMethod),
+    [paymentMethod],
+  );
 
   useEffect(() => {
-    if (!open) {
-      return;
-    }
+    if (!open) return;
 
     setCustomerId(null);
     setCustomerName("");
@@ -266,14 +290,11 @@ export default function CashierCheckoutDialog({
     setPaidAmount("");
 
     setNotes("");
-
     setLoading(false);
   }, [open]);
 
   useEffect(() => {
-    if (!open || guestCustomer) {
-      return;
-    }
+    if (!open || guestCustomer) return;
 
     const keyword = customerSearch.trim();
 
@@ -306,42 +327,34 @@ export default function CashierCheckoutDialog({
   }, [open, customerSearch, guestCustomer]);
 
   useEffect(() => {
-    if (!open) {
-      return;
-    }
+    if (!open) return;
 
     if (midtransPayment) {
-      setPaidAmount(String(amountToPay));
+      setPaidAmount(formatRupiahInput(amountToPay));
       return;
     }
 
     setPaidAmount("");
   }, [open, midtransPayment, amountToPay]);
 
-  if (!open) {
-    return null;
-  }
+  if (!open) return null;
 
   const handleClose = () => {
-    if (loading) {
-      return;
-    }
-
+    if (loading) return;
     onClose?.();
   };
 
   const handleSelectCustomer = (customer) => {
     const id = Number(customer?.id);
 
-    if (!id) {
-      return;
-    }
+    if (!id) return;
+
+    const name = getCustomerName(customer);
 
     setCustomerId(id);
-    setCustomerName(getCustomerName(customer));
+    setCustomerName(name);
     setCustomerPhone(getCustomerPhone(customer));
-
-    setCustomerSearch(getCustomerName(customer));
+    setCustomerSearch(name);
     setCustomerDropdownOpen(false);
   };
 
@@ -378,25 +391,19 @@ export default function CashierCheckoutDialog({
     const nextPaymentFee = calculatePaymentFee(method, grandTotal);
     const nextAmountToPay = grandTotal + nextPaymentFee;
 
-    setPaidAmount(String(nextAmountToPay));
+    setPaidAmount(formatRupiahInput(nextAmountToPay));
   };
 
   const handlePaidAmountChange = (event) => {
-    const value = event.target.value;
-
-    setPaidAmount(value.replace(/[^\d]/g, ""));
+    setPaidAmount(formatRupiahInput(event.target.value));
   };
 
   const handleDiscountChange = (event) => {
-    const value = event.target.value;
-
-    setDiscount(value.replace(/[^\d]/g, ""));
+    setDiscount(formatRupiahInput(event.target.value));
   };
 
   const handleTaxChange = (event) => {
-    const value = event.target.value;
-
-    setTax(value.replace(/[^\d]/g, ""));
+    setTax(formatRupiahInput(event.target.value));
   };
 
   const validateCheckout = () => {
@@ -421,7 +428,6 @@ export default function CashierCheckoutDialog({
           remainingAmount,
         )}.`,
       );
-
       return false;
     }
 
@@ -438,7 +444,6 @@ export default function CashierCheckoutDialog({
       toast.error(
         "Midtrans payment is not ready. Please refresh the page and try again.",
       );
-
       return;
     }
 
@@ -458,13 +463,11 @@ export default function CashierCheckoutDialog({
 
       onPending: (result) => {
         console.log("Midtrans payment pending:", result);
-
         toast.info("Payment is still pending. Please complete the payment.");
       },
 
       onError: (result) => {
         console.error("Midtrans payment error:", result);
-
         toast.error("Midtrans payment failed.");
       },
 
@@ -477,13 +480,7 @@ export default function CashierCheckoutDialog({
   const handleSubmit = async (event) => {
     event.preventDefault();
 
-    if (loading) {
-      return;
-    }
-
-    if (!validateCheckout()) {
-      return;
-    }
+    if (loading || !validateCheckout()) return;
 
     try {
       setLoading(true);
@@ -546,13 +543,13 @@ export default function CashierCheckoutDialog({
   const DescriptionIcon = paymentMethodDescription?.icon;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-950/55 p-3 backdrop-blur-[2px] sm:p-5">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-950/55 p-3 backdrop-blur-sm sm:p-5">
       <div
-        className="flex max-h-[94vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-2xl"
+        className="relative z-10 flex max-h-[94vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-2xl"
         onClick={(event) => event.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex shrink-0 items-center justify-between border-b border-gray-200 bg-white px-5 py-4 sm:px-6">
+        <div className="flex shrink-0 items-center justify-between border-b border-gray-200 px-4 py-4 sm:px-6">
           <div className="flex min-w-0 items-center gap-3">
             <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-red-50 text-red-600 ring-1 ring-red-100">
               <Receipt className="h-5 w-5" />
@@ -562,8 +559,7 @@ export default function CashierCheckoutDialog({
               <h2 className="text-lg font-bold tracking-tight text-gray-900">
                 Checkout
               </h2>
-
-              <p className="mt-0.5 truncate text-xs text-gray-500 sm:text-sm">
+              <p className="mt-0.5 text-xs text-gray-500 sm:text-sm">
                 Complete the transaction and payment.
               </p>
             </div>
@@ -582,32 +578,15 @@ export default function CashierCheckoutDialog({
 
         {/* Form */}
         <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col">
-          {/* Content */}
-          <div className="min-h-0 flex-1 overflow-y-auto bg-gray-50/50 p-4 sm:p-6">
+          <div className="min-h-0 flex-1 overflow-y-auto bg-gray-50/60 p-4 sm:p-6">
             <div className="space-y-5">
               {/* Customer */}
               <section className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm sm:p-5">
-                <div className="mb-4 flex items-center justify-between">
-                  <div className="flex items-center gap-2.5">
-                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-red-50 text-red-600">
-                      <User className="h-4 w-4" />
-                    </div>
-
-                    <div>
-                      <h3 className="text-sm font-semibold text-gray-900">
-                        Customer
-                      </h3>
-
-                      <p className="text-xs text-gray-500">
-                        Select or enter customer information
-                      </p>
-                    </div>
-                  </div>
-
-                  <span className="rounded-full bg-gray-100 px-2.5 py-1 text-[10px] font-medium text-gray-500">
-                    Optional
-                  </span>
-                </div>
+                <SectionHeading
+                  title="Customer"
+                  description="Select a registered customer or enter walk-in details."
+                  icon={User}
+                />
 
                 <div className="mb-4 grid grid-cols-2 gap-2">
                   <button
@@ -620,8 +599,8 @@ export default function CashierCheckoutDialog({
                         : "border-gray-200 bg-white text-gray-600 hover:border-gray-300 hover:bg-gray-50"
                     } disabled:cursor-not-allowed disabled:opacity-50`}
                   >
-                    <User className="h-4 w-4" />
-                    Registered Customer
+                    <User className="h-4 w-4 shrink-0" />
+                    <span>Registered Customer</span>
                   </button>
 
                   <button
@@ -634,8 +613,8 @@ export default function CashierCheckoutDialog({
                         : "border-gray-200 bg-white text-gray-600 hover:border-gray-300 hover:bg-gray-50"
                     } disabled:cursor-not-allowed disabled:opacity-50`}
                   >
-                    <UserRoundPlus className="h-4 w-4" />
-                    Walk-in Customer
+                    <UserRoundPlus className="h-4 w-4 shrink-0" />
+                    <span>Walk-in Customer</span>
                   </button>
                 </div>
 
@@ -643,7 +622,7 @@ export default function CashierCheckoutDialog({
                   <div className="relative">
                     <label
                       htmlFor="customer_search"
-                      className="mb-1.5 block text-xs font-semibold text-gray-700 sm:text-sm"
+                      className="mb-1.5 block text-sm font-medium text-gray-700"
                     >
                       Select Customer
                     </label>
@@ -665,7 +644,7 @@ export default function CashierCheckoutDialog({
                         onFocus={() => setCustomerDropdownOpen(true)}
                         placeholder="Search customer by name or phone..."
                         disabled={loading}
-                        className="h-11 w-full rounded-lg border border-gray-300 bg-white pl-10 pr-10 text-sm outline-none transition placeholder:text-gray-400 focus:border-red-500 focus:ring-4 focus:ring-red-50 disabled:bg-gray-100"
+                        className={`${inputClassName} pl-10 pr-10`}
                       />
 
                       <ChevronDown
@@ -714,7 +693,6 @@ export default function CashierCheckoutDialog({
                                       <p className="truncate text-sm font-semibold text-gray-900">
                                         {name}
                                       </p>
-
                                       <p className="mt-0.5 text-xs text-gray-500">
                                         {phone}
                                       </p>
@@ -733,11 +711,9 @@ export default function CashierCheckoutDialog({
                             <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-full bg-gray-100">
                               <User className="h-5 w-5 text-gray-400" />
                             </div>
-
                             <p className="mt-3 text-sm font-semibold text-gray-700">
                               Customer not found
                             </p>
-
                             <p className="mt-1 text-xs text-gray-500">
                               Try another name or phone number.
                             </p>
@@ -747,7 +723,7 @@ export default function CashierCheckoutDialog({
                     )}
 
                     {customerId && (
-                      <div className="mt-3 flex items-center justify-between rounded-lg border border-red-100 bg-red-50 px-3.5 py-3">
+                      <div className="mt-3 flex items-center justify-between gap-3 rounded-lg border border-red-100 bg-red-50 px-3.5 py-3">
                         <div className="flex min-w-0 items-center gap-3">
                           <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-red-100 text-red-600">
                             <User className="h-4 w-4" />
@@ -757,7 +733,6 @@ export default function CashierCheckoutDialog({
                             <p className="text-[10px] font-medium uppercase tracking-wide text-red-500">
                               Selected Customer
                             </p>
-
                             <p className="truncate text-sm font-semibold text-red-700">
                               {customerName}
                             </p>
@@ -771,9 +746,10 @@ export default function CashierCheckoutDialog({
                             setCustomerName("");
                             setCustomerPhone("");
                             setCustomerSearch("");
+                            setCustomerDropdownOpen(true);
                           }}
                           disabled={loading}
-                          className="ml-3 text-xs font-semibold text-red-600 transition hover:text-red-700 disabled:opacity-50"
+                          className="shrink-0 text-xs font-semibold text-red-600 transition hover:text-red-700 disabled:opacity-50"
                         >
                           Change
                         </button>
@@ -786,12 +762,10 @@ export default function CashierCheckoutDialog({
                       <div className="flex h-9 w-9 items-center justify-center rounded-full bg-white text-gray-500 shadow-sm ring-1 ring-gray-200">
                         <UserRoundPlus className="h-4 w-4" />
                       </div>
-
                       <div>
                         <p className="text-sm font-semibold text-gray-900">
                           Walk-in Customer
                         </p>
-
                         <p className="text-xs text-gray-500">
                           Customer is not registered.
                         </p>
@@ -802,11 +776,10 @@ export default function CashierCheckoutDialog({
                       <div>
                         <label
                           htmlFor="customer_name"
-                          className="mb-1.5 block text-xs font-semibold text-gray-700 sm:text-sm"
+                          className="mb-1.5 block text-sm font-medium text-gray-700"
                         >
                           Customer Name
                         </label>
-
                         <input
                           id="customer_name"
                           type="text"
@@ -816,18 +789,17 @@ export default function CashierCheckoutDialog({
                           }
                           placeholder="Customer name"
                           disabled={loading}
-                          className="h-10 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm outline-none transition placeholder:text-gray-400 focus:border-red-500 focus:ring-4 focus:ring-red-50 disabled:bg-gray-100"
+                          className={inputClassName}
                         />
                       </div>
 
                       <div>
                         <label
                           htmlFor="customer_phone"
-                          className="mb-1.5 block text-xs font-semibold text-gray-700 sm:text-sm"
+                          className="mb-1.5 block text-sm font-medium text-gray-700"
                         >
                           Phone Number
                         </label>
-
                         <input
                           id="customer_phone"
                           type="text"
@@ -838,7 +810,7 @@ export default function CashierCheckoutDialog({
                           }
                           placeholder="08xxxxxxxxxx"
                           disabled={loading}
-                          className="h-10 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm outline-none transition placeholder:text-gray-400 focus:border-red-500 focus:ring-4 focus:ring-red-50 disabled:bg-gray-100"
+                          className={inputClassName}
                         />
                       </div>
                     </div>
@@ -848,65 +820,58 @@ export default function CashierCheckoutDialog({
 
               {/* Order Summary */}
               <section className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
-                <div className="flex items-center justify-between border-b border-gray-100 px-4 py-4 sm:px-5">
+                <div className="flex items-center justify-between gap-3 border-b border-gray-100 px-4 py-4 sm:px-5">
                   <div>
                     <h3 className="text-sm font-semibold text-gray-900">
                       Order Summary
                     </h3>
-
                     <p className="mt-0.5 text-xs text-gray-500">
                       Review transaction amount
                     </p>
                   </div>
 
-                  <span className="rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-500">
-                    {cart.length} product
-                    {cart.length !== 1 ? "s" : ""}
+                  <span className="shrink-0 rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-500">
+                    {cart.length} product{cart.length !== 1 ? "s" : ""}
                   </span>
                 </div>
 
                 <div className="space-y-3 p-4 sm:p-5">
-                  <div className="flex items-center justify-between text-sm">
+                  <div className="flex items-center justify-between gap-4 text-sm">
                     <span className="text-gray-500">Subtotal</span>
-
-                    <span className="font-medium text-gray-900">
+                    <span className="text-right font-medium tabular-nums text-gray-900">
                       {formatRupiah(subtotal)}
                     </span>
                   </div>
 
-                  <div className="flex items-center justify-between text-sm">
+                  <div className="flex items-center justify-between gap-4 text-sm">
                     <span className="text-gray-500">Discount</span>
-
-                    <span className="font-medium text-gray-900">
+                    <span className="text-right font-medium tabular-nums text-gray-900">
                       - {formatRupiah(discountAmount)}
                     </span>
                   </div>
 
-                  <div className="flex items-center justify-between text-sm">
+                  <div className="flex items-center justify-between gap-4 text-sm">
                     <span className="text-gray-500">Tax</span>
-
-                    <span className="font-medium text-gray-900">
+                    <span className="text-right font-medium tabular-nums text-gray-900">
                       {formatRupiah(taxAmount)}
                     </span>
                   </div>
 
                   <div className="border-t border-gray-100 pt-3">
-                    <div className="flex items-center justify-between">
+                    <div className="flex items-center justify-between gap-4">
                       <span className="text-sm font-semibold text-gray-900">
                         Grand Total
                       </span>
-
-                      <span className="text-lg font-bold text-gray-900 sm:text-xl">
+                      <span className="text-right text-lg font-bold tabular-nums text-gray-900 sm:text-xl">
                         {formatRupiah(grandTotal)}
                       </span>
                     </div>
                   </div>
 
-                  <div className="flex items-center justify-between text-sm">
+                  <div className="flex items-center justify-between gap-4 text-sm">
                     <span className="text-gray-500">Payment Fee</span>
-
                     <span
-                      className={`font-medium ${
+                      className={`text-right font-medium tabular-nums ${
                         paymentFee > 0 ? "text-gray-900" : "text-gray-400"
                       }`}
                     >
@@ -916,19 +881,17 @@ export default function CashierCheckoutDialog({
                     </span>
                   </div>
 
-                  <div className="mt-1 rounded-xl bg-red-600 px-4 py-4 shadow-sm">
-                    <div className="flex items-center justify-between">
-                      <div>
+                  <div className="rounded-xl bg-red-600 p-4 shadow-sm">
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="min-w-0">
                         <p className="text-xs font-medium text-red-100">
                           Amount to Pay
                         </p>
-
                         <p className="mt-0.5 text-sm font-semibold text-white">
                           Total transaction
                         </p>
                       </div>
-
-                      <span className="text-xl font-bold text-white sm:text-2xl">
+                      <span className="shrink-0 text-right text-xl font-bold tabular-nums text-white sm:text-2xl">
                         {formatRupiah(amountToPay)}
                       </span>
                     </div>
@@ -936,95 +899,61 @@ export default function CashierCheckoutDialog({
                 </div>
               </section>
 
-              {/* Discount & Tax */}
+              {/* Adjustment */}
               <section className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm sm:p-5">
-                <div className="mb-4">
-                  <h3 className="text-sm font-semibold text-gray-900">
-                    Adjustment
-                  </h3>
-
-                  <p className="mt-0.5 text-xs text-gray-500">
-                    Apply discount or tax if necessary
-                  </p>
-                </div>
+                <SectionHeading
+                  title="Adjustment"
+                  description="Apply a discount or tax if necessary."
+                />
 
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <div>
                     <label
                       htmlFor="discount"
-                      className="mb-1.5 block text-xs font-semibold text-gray-700 sm:text-sm"
+                      className="mb-1.5 block text-sm font-medium text-gray-700"
                     >
                       Discount
                     </label>
-
-                    <div className="relative">
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-medium text-gray-400">
-                        Rp
-                      </span>
-
-                      <input
-                        id="discount"
-                        type="text"
-                        inputMode="numeric"
-                        value={discount}
-                        onChange={handleDiscountChange}
-                        placeholder="0"
-                        disabled={loading}
-                        className="h-10 w-full rounded-lg border border-gray-300 bg-white pl-10 pr-3 text-sm outline-none transition placeholder:text-gray-400 focus:border-red-500 focus:ring-4 focus:ring-red-50 disabled:bg-gray-100"
-                      />
-                    </div>
+                    <RupiahInput
+                      id="discount"
+                      value={discount}
+                      onChange={handleDiscountChange}
+                      disabled={loading}
+                    />
                   </div>
 
                   <div>
                     <label
                       htmlFor="tax"
-                      className="mb-1.5 block text-xs font-semibold text-gray-700 sm:text-sm"
+                      className="mb-1.5 block text-sm font-medium text-gray-700"
                     >
                       Tax
                     </label>
-
-                    <div className="relative">
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-medium text-gray-400">
-                        Rp
-                      </span>
-
-                      <input
-                        id="tax"
-                        type="text"
-                        inputMode="numeric"
-                        value={tax}
-                        onChange={handleTaxChange}
-                        placeholder="0"
-                        disabled={loading}
-                        className="h-10 w-full rounded-lg border border-gray-300 bg-white pl-10 pr-3 text-sm outline-none transition placeholder:text-gray-400 focus:border-red-500 focus:ring-4 focus:ring-red-50 disabled:bg-gray-100"
-                      />
-                    </div>
+                    <RupiahInput
+                      id="tax"
+                      value={tax}
+                      onChange={handleTaxChange}
+                      disabled={loading}
+                    />
                   </div>
                 </div>
               </section>
 
               {/* Payment Method */}
               <section className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm sm:p-5">
-                <div className="mb-4">
-                  <h3 className="text-sm font-semibold text-gray-900">
-                    Payment Method
-                  </h3>
-
-                  <p className="mt-0.5 text-xs text-gray-500">
-                    Cash is processed directly. Other methods use Midtrans.
-                  </p>
-                </div>
+                <SectionHeading
+                  title="Payment Method"
+                  description="Cash is processed directly. Other methods use Midtrans."
+                />
 
                 <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
                   {PAYMENT_METHODS.map((method) => {
                     const Icon = method.icon;
                     const active = paymentMethod === method.value;
-
                     const methodFee = calculatePaymentFee(
                       method.value,
                       grandTotal,
                     );
-
                     const usesMidtrans = isMidtransPayment(method.value);
 
                     return (
@@ -1052,7 +981,7 @@ export default function CashierCheckoutDialog({
                               : "bg-gray-100 text-gray-500 group-hover:bg-gray-200"
                           }`}
                         >
-                          <Icon className="h-4.5 w-4.5" />
+                          <Icon className="h-[18px] w-[18px]" />
                         </div>
 
                         <span className="text-xs font-semibold">
@@ -1060,22 +989,14 @@ export default function CashierCheckoutDialog({
                         </span>
 
                         {methodFee > 0 && (
-                          <span className="text-[10px] font-medium text-gray-500">
+                          <span className="text-center text-[10px] font-medium text-gray-500">
                             +{formatRupiah(methodFee)}
                           </span>
                         )}
 
-                        {usesMidtrans && (
-                          <span className="text-[9px] font-medium text-gray-400">
-                            Midtrans
-                          </span>
-                        )}
-
-                        {!usesMidtrans && (
-                          <span className="text-[9px] font-medium text-gray-400">
-                            Direct
-                          </span>
-                        )}
+                        <span className="text-[9px] font-medium text-gray-400">
+                          {usesMidtrans ? "Midtrans" : "Direct"}
+                        </span>
                       </button>
                     );
                   })}
@@ -1088,7 +1009,7 @@ export default function CashierCheckoutDialog({
                     <div className="flex items-start gap-3">
                       <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white/70">
                         <DescriptionIcon
-                          className={`h-4.5 w-4.5 ${paymentMethodDescription.iconClassName}`}
+                          className={`h-[18px] w-[18px] ${paymentMethodDescription.iconClassName}`}
                         />
                       </div>
 
@@ -1098,7 +1019,6 @@ export default function CashierCheckoutDialog({
                         >
                           {paymentMethodDescription.title}
                         </p>
-
                         <p
                           className={`mt-1 text-xs leading-5 ${paymentMethodDescription.descriptionClassName}`}
                         >
@@ -1112,46 +1032,30 @@ export default function CashierCheckoutDialog({
 
               {/* Payment */}
               <section className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm sm:p-5">
-                <div className="mb-4">
-                  <h3 className="text-sm font-semibold text-gray-900">
-                    Payment
-                  </h3>
-
-                  <p className="mt-0.5 text-xs text-gray-500">
-                    {paymentMethod === "cash"
+                <SectionHeading
+                  title="Payment"
+                  description={
+                    paymentMethod === "cash"
                       ? "Enter the amount received from the customer."
-                      : "Review the amount that will be processed."}
-                  </p>
-                </div>
+                      : "Review the amount that will be processed."
+                  }
+                />
 
                 <div>
                   <label
                     htmlFor="paid_amount"
-                    className="mb-1.5 block text-xs font-semibold text-gray-700 sm:text-sm"
+                    className="mb-1.5 block text-sm font-medium text-gray-700"
                   >
                     {paymentMethod === "cash" ? "Paid Amount" : "Amount to Pay"}
                   </label>
 
-                  <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-medium text-gray-400">
-                      Rp
-                    </span>
-
-                    <input
-                      id="paid_amount"
-                      type="text"
-                      inputMode="numeric"
-                      value={paidAmount}
-                      onChange={handlePaidAmountChange}
-                      placeholder="0"
-                      disabled={loading || paymentMethod !== "cash"}
-                      className={`h-12 w-full rounded-xl border pl-10 pr-3 text-lg font-bold outline-none transition placeholder:text-gray-300 focus:ring-4 disabled:bg-gray-100 ${
-                        paymentMethod === "cash"
-                          ? "border-gray-300 text-gray-900 focus:border-red-500 focus:ring-red-50"
-                          : "border-gray-200 bg-gray-50 text-gray-500"
-                      }`}
-                    />
-                  </div>
+                  <RupiahInput
+                    id="paid_amount"
+                    value={paidAmount}
+                    onChange={handlePaidAmountChange}
+                    disabled={loading || paymentMethod !== "cash"}
+                    className="h-12 rounded-xl text-lg font-bold"
+                  />
 
                   {paymentMethod !== "cash" && (
                     <p className="mt-2 text-xs leading-5 text-gray-500">
@@ -1163,30 +1067,27 @@ export default function CashierCheckoutDialog({
 
                 <div className="mt-4 overflow-hidden rounded-xl border border-gray-200 bg-gray-50">
                   <div className="space-y-3 p-4">
-                    <div className="flex items-center justify-between text-sm">
+                    <div className="flex items-center justify-between gap-4 text-sm">
                       <span className="text-gray-500">Grand Total</span>
-
-                      <span className="font-semibold text-gray-900">
+                      <span className="text-right font-semibold tabular-nums text-gray-900">
                         {formatRupiah(grandTotal)}
                       </span>
                     </div>
 
-                    <div className="flex items-center justify-between text-sm">
+                    <div className="flex items-center justify-between gap-4 text-sm">
                       <span className="text-gray-500">Payment Fee</span>
-
-                      <span className="font-medium text-gray-900">
+                      <span className="text-right font-medium tabular-nums text-gray-900">
                         {paymentFee > 0
                           ? `+ ${formatRupiah(paymentFee)}`
                           : formatRupiah(0)}
                       </span>
                     </div>
 
-                    <div className="flex items-center justify-between border-t border-gray-200 pt-3">
+                    <div className="flex items-center justify-between gap-4 border-t border-gray-200 pt-3">
                       <span className="font-semibold text-gray-900">
                         Amount to Pay
                       </span>
-
-                      <span className="text-lg font-bold text-red-600">
+                      <span className="text-right text-lg font-bold tabular-nums text-red-600">
                         {formatRupiah(amountToPay)}
                       </span>
                     </div>
@@ -1194,18 +1095,16 @@ export default function CashierCheckoutDialog({
 
                   {paymentMethod === "cash" &&
                     paidAmountNumber >= amountToPay && (
-                      <div className="flex items-center justify-between border-t border-green-200 bg-green-50 px-4 py-3.5">
+                      <div className="flex items-center justify-between gap-3 border-t border-green-200 bg-green-50 px-4 py-3.5">
                         <div>
                           <p className="text-xs font-medium text-green-700">
                             Change
                           </p>
-
                           <p className="mt-0.5 text-[10px] text-green-600">
                             Return to customer
                           </p>
                         </div>
-
-                        <span className="text-lg font-bold text-green-600">
+                        <span className="text-right text-lg font-bold tabular-nums text-green-600">
                           {formatRupiah(changeAmount)}
                         </span>
                       </div>
@@ -1213,18 +1112,16 @@ export default function CashierCheckoutDialog({
 
                   {paymentMethod === "cash" &&
                     paidAmountNumber < amountToPay && (
-                      <div className="flex items-center justify-between border-t border-red-200 bg-red-50 px-4 py-3.5">
+                      <div className="flex items-center justify-between gap-3 border-t border-red-200 bg-red-50 px-4 py-3.5">
                         <div>
                           <p className="text-xs font-medium text-red-700">
                             Remaining
                           </p>
-
                           <p className="mt-0.5 text-[10px] text-red-600">
                             Additional payment required
                           </p>
                         </div>
-
-                        <span className="text-lg font-bold text-red-600">
+                        <span className="text-right text-lg font-bold tabular-nums text-red-600">
                           {formatRupiah(remainingAmount)}
                         </span>
                       </div>
@@ -1235,7 +1132,6 @@ export default function CashierCheckoutDialog({
                       <span className="text-xs font-medium text-gray-500">
                         Payment Gateway
                       </span>
-
                       <span className="rounded-full bg-gray-100 px-2.5 py-1 text-xs font-semibold text-gray-700">
                         Midtrans
                       </span>
@@ -1246,18 +1142,10 @@ export default function CashierCheckoutDialog({
 
               {/* Notes */}
               <section className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm sm:p-5">
-                <div className="mb-3">
-                  <label
-                    htmlFor="notes"
-                    className="block text-sm font-semibold text-gray-900"
-                  >
-                    Notes
-                  </label>
-
-                  <p className="mt-0.5 text-xs text-gray-500">
-                    Add optional notes for this transaction.
-                  </p>
-                </div>
+                <SectionHeading
+                  title="Notes"
+                  description="Add optional notes for this transaction."
+                />
 
                 <textarea
                   id="notes"
@@ -1266,7 +1154,7 @@ export default function CashierCheckoutDialog({
                   placeholder="Transaction notes..."
                   rows={3}
                   disabled={loading}
-                  className="w-full resize-none rounded-xl border border-gray-300 bg-white px-3 py-2.5 text-sm outline-none transition placeholder:text-gray-400 focus:border-red-500 focus:ring-4 focus:ring-red-50 disabled:bg-gray-100"
+                  className="w-full resize-none rounded-xl border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-900 outline-none transition placeholder:text-gray-400 focus:border-red-500 focus:ring-4 focus:ring-red-50 disabled:bg-gray-100"
                 />
               </section>
             </div>
@@ -1279,15 +1167,13 @@ export default function CashierCheckoutDialog({
                 <p className="text-[10px] font-medium uppercase tracking-wide text-gray-400 sm:text-xs">
                   Total Payment
                 </p>
-
-                <p className="text-lg font-bold text-gray-900 sm:text-xl">
+                <p className="text-lg font-bold tabular-nums text-gray-900 sm:text-xl">
                   {formatRupiah(amountToPay)}
                 </p>
               </div>
 
               <p className="text-xs text-gray-500 sm:hidden">
-                {cart.length} product
-                {cart.length !== 1 ? "s" : ""}
+                {cart.length} product{cart.length !== 1 ? "s" : ""}
               </p>
             </div>
 
@@ -1334,7 +1220,7 @@ export default function CashierCheckoutDialog({
         aria-label="Close checkout dialog"
         onClick={handleClose}
         disabled={loading}
-        className="absolute inset-0 -z-10 cursor-default"
+        className="absolute inset-0 -z-0 cursor-default"
       />
     </div>
   );

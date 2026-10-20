@@ -36,7 +36,7 @@ export async function requireRole(role) {
 
   if (user.role !== role) {
     const dashboardRoutes = {
-      admin: "/admin/dashboard",
+      admin: "/admin",
       teknisi: "/teknisi/dashboard",
       customer: "/customer/dashboard",
     };

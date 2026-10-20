@@ -17,165 +17,182 @@ export default function DataTable({
   className = "",
   tableClassName = "",
 }) {
+  const getRowKey = (item, index) => {
+    const key = typeof rowKey === "function" ? rowKey(item) : item?.[rowKey];
+
+    return key ?? index;
+  };
+
+  const wrapperClass = ["block w-full min-w-0", className]
+    .filter(Boolean)
+    .join(" ");
+
+  // Loading
   if (loading && skeleton) {
-    return skeleton;
+    return <div className={wrapperClass}>{skeleton}</div>;
   }
 
+  // Empty state
   if (!loading && data.length === 0) {
-    const EmptyIcon = emptyIcon;
+    let renderedEmptyIcon = null;
 
-    const renderedEmptyIcon = isValidElement(EmptyIcon) ? (
-      EmptyIcon
-    ) : typeof EmptyIcon === "function" ||
-      (typeof EmptyIcon === "object" &&
-        EmptyIcon !== null &&
-        "$$typeof" in EmptyIcon) ? (
-      <EmptyIcon size={28} />
-    ) : null;
+    if (isValidElement(emptyIcon)) {
+      renderedEmptyIcon = emptyIcon;
+    } else if (typeof emptyIcon === "function") {
+      const EmptyIcon = emptyIcon;
+      renderedEmptyIcon = <EmptyIcon size={28} aria-hidden="true" />;
+    }
 
     return (
       <div
         className={[
-          "flex min-h-[280px] items-center justify-center",
-          "rounded-2xl border border-dashed border-gray-200",
-          "bg-white px-6 py-12",
-          className,
-        ]
-          .filter(Boolean)
-          .join(" ")}
+          wrapperClass,
+          "rounded-xl border border-dashed border-gray-200",
+          "bg-white px-4 py-10 sm:px-6 sm:py-12",
+        ].join(" ")}
       >
-        <div className="max-w-md text-center">
-          {renderedEmptyIcon ? (
-            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-red-50 text-red-600">
+        <div className="mx-auto flex w-full min-w-0 max-w-md flex-col items-center text-center">
+          {renderedEmptyIcon && (
+            <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-red-50 text-red-600">
               {renderedEmptyIcon}
             </div>
-          ) : null}
+          )}
 
-          <h3 className="mt-4 text-base font-semibold text-gray-900">
+          <h3 className="mt-4 break-words text-base font-semibold text-gray-900">
             {emptyMessage}
           </h3>
 
-          {emptyDescription ? (
-            <p className="mx-auto mt-2 text-sm leading-6 text-gray-500">
+          {emptyDescription && (
+            <p className="mt-2 break-words text-sm leading-6 text-gray-500">
               {emptyDescription}
             </p>
-          ) : null}
+          )}
         </div>
       </div>
     );
   }
 
-  const headerCells = columns.map((column) => (
-    <th
-      key={column.key}
-      scope="col"
-      className={[
-        "whitespace-nowrap px-5 py-3.5",
-        "text-left text-[11px] font-semibold",
-        "uppercase tracking-wider text-gray-500",
-        column.headerClassName || "",
-      ]
-        .filter(Boolean)
-        .join(" ")}
+  const headers = (
+    <>
+      {columns.map((column) => (
+        <th
+          key={column.key}
+          scope="col"
+          className={[
+            "whitespace-nowrap px-4 py-3.5",
+            "text-left text-[11px] font-semibold",
+            "uppercase tracking-wider text-gray-500",
+            "sm:px-5",
+            column.headerClassName || "",
+          ]
+            .filter(Boolean)
+            .join(" ")}
+        >
+          {column.label}
+        </th>
+      ))}
+
+      {renderActions && (
+        <th
+          scope="col"
+          className="whitespace-nowrap px-4 py-3.5 text-right text-[11px] font-semibold uppercase tracking-wider text-gray-500 sm:px-5"
+        >
+          {actionsLabel}
+        </th>
+      )}
+    </>
+  );
+
+  const bodyRows = data.map((item, index) => (
+    <tr
+      key={getRowKey(item, index)}
+      className="transition-colors duration-150 hover:bg-gray-50/70"
     >
-      {column.label}
-    </th>
+      {columns.map((column) => (
+        <td
+          key={column.key}
+          className={[
+            "px-4 py-4 align-middle text-sm text-gray-700 sm:px-5",
+            column.cellClassName || "",
+          ]
+            .filter(Boolean)
+            .join(" ")}
+        >
+          {column.render
+            ? column.render(item, index)
+            : (item?.[column.key] ?? "-")}
+        </td>
+      ))}
+
+      {renderActions && (
+        <td className="whitespace-nowrap px-4 py-4 align-middle sm:px-5">
+          {renderActions(item, index)}
+        </td>
+      )}
+    </tr>
   ));
 
-  const actionHeader = renderActions ? (
-    <th
-      key="actions"
-      scope="col"
-      className={[
-        "whitespace-nowrap px-5 py-3.5",
-        "text-right text-[11px] font-semibold",
-        "uppercase tracking-wider text-gray-500",
-      ].join(" ")}
-    >
-      {actionsLabel}
-    </th>
-  ) : null;
-
-  const headers = actionHeader ? [...headerCells, actionHeader] : headerCells;
-
-  const bodyRows = data.map((item, index) => {
-    const key = typeof rowKey === "function" ? rowKey(item) : item[rowKey];
-
-    const cells = columns.map((column) => (
-      <td
-        key={column.key}
-        className={[
-          "px-5 py-4 align-middle text-sm text-gray-700",
-          column.cellClassName || "",
-        ]
-          .filter(Boolean)
-          .join(" ")}
-      >
-        {column.render ? column.render(item, index) : (item[column.key] ?? "-")}
-      </td>
-    ));
-
-    const actionCell = renderActions ? (
-      <td key="actions" className="whitespace-nowrap px-5 py-4 align-middle">
-        {renderActions(item, index)}
-      </td>
-    ) : null;
-
-    const rowCells = actionCell ? [...cells, actionCell] : cells;
-
+  // Mobile cards, if supplied by the caller
+  if (renderMobile) {
     return (
-      <tr
-        key={key}
-        className="transition-colors duration-150 hover:bg-gray-50/70"
-      >
-        {rowCells}
-      </tr>
-    );
-  });
+      <div className={wrapperClass}>
+        <div className="flex w-full min-w-0 flex-col gap-3 md:hidden">
+          {data.map((item, index) => (
+            <div key={getRowKey(item, index)} className="w-full min-w-0">
+              {renderMobile(item, index)}
+            </div>
+          ))}
+        </div>
 
-  const mobileItems = renderMobile
-    ? data.map((item, index) => {
-        const key = typeof rowKey === "function" ? rowKey(item) : item[rowKey];
+        <div className="hidden w-full min-w-0 md:block">
+          <div className="w-full overflow-x-auto overscroll-x-contain">
+            <table
+              className={[
+                "w-full min-w-[860px] border-collapse",
+                tableClassName,
+              ]
+                .filter(Boolean)
+                .join(" ")}
+            >
+              <thead>
+                <tr className="border-b border-gray-200 bg-gray-50/80">
+                  {headers}
+                </tr>
+              </thead>
 
-        return (
-          <div key={key} className="min-w-0">
-            {renderMobile(item, index)}
+              <tbody className="divide-y divide-gray-100">{bodyRows}</tbody>
+            </table>
           </div>
-        );
-      })
-    : null;
-
-  return (
-    <>
-      <div
-        className={[
-          "hidden overflow-hidden rounded-2xl",
-          "border border-gray-200 bg-white shadow-sm",
-          "md:block",
-          className,
-        ]
-          .filter(Boolean)
-          .join(" ")}
-      >
-        <div className="overflow-x-auto">
-          <table
-            className={["w-full min-w-[860px]", tableClassName]
-              .filter(Boolean)
-              .join(" ")}
-          >
-            <thead>
-              <tr className="border-b border-gray-200 bg-gray-50/80">
-                {headers}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">{bodyRows}</tbody>
-          </table>
         </div>
       </div>
+    );
+  }
 
-      {mobileItems ? (
-        <div className="space-y-3 md:hidden">{mobileItems}</div>
-      ) : null}
-    </>
+  // Single horizontal scroll container for all screen sizes
+  return (
+    <div className={wrapperClass}>
+      <div
+        className="block w-full min-w-0 overflow-x-auto overscroll-x-contain"
+        style={{ WebkitOverflowScrolling: "touch" }}
+      >
+        <table
+          className={[
+            "w-full min-w-[760px] border-collapse",
+            "text-left",
+            tableClassName,
+          ]
+            .filter(Boolean)
+            .join(" ")}
+        >
+          <thead>
+            <tr className="border-b border-gray-200 bg-gray-50/80">
+              {headers}
+            </tr>
+          </thead>
+
+          <tbody className="divide-y divide-gray-100">{bodyRows}</tbody>
+        </table>
+      </div>
+    </div>
   );
 }

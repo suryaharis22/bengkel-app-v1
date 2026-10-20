@@ -2,7 +2,7 @@ export const ROUTES = {
   LOGIN: "/login",
 
   ADMIN: {
-    DASHBOARD: "/admin/dashboard",
+    DASHBOARD: "/admin",
 
     MANAGEMENT: {
       USERS: "/admin/users",

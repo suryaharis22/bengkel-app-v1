@@ -1,10 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { Plus, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import api from "@/lib/axios";
 import { getAxiosError } from "@/lib/axios-error";
+
 import UserFilter from "@/components/users/UserFilter";
 import UserTable from "@/components/users/UserTable";
 import UserTableSkeleton from "@/components/users/UserTableSkeleton";
@@ -13,6 +14,13 @@ import UserDeleteDialog from "@/components/users/UserDeleteDialog";
 
 const DEFAULT_PER_PAGE = 10;
 
+const DEFAULT_META = {
+  current_page: 1,
+  per_page: DEFAULT_PER_PAGE,
+  total_items: 0,
+  total_pages: 0,
+};
+
 export default function UsersPage() {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -20,16 +28,11 @@ export default function UsersPage() {
 
   const [search, setSearch] = useState("");
   const [role, setRole] = useState("");
-
   const [page, setPage] = useState(1);
   const [perPage, setPerPage] = useState(DEFAULT_PER_PAGE);
+  const [meta, setMeta] = useState(DEFAULT_META);
 
-  const [meta, setMeta] = useState({
-    current_page: 1,
-    per_page: DEFAULT_PER_PAGE,
-    total_items: 0,
-    total_pages: 0,
-  });
+  const [requestKey, setRequestKey] = useState(0);
 
   const [formOpen, setFormOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState(null);
@@ -37,15 +40,13 @@ export default function UsersPage() {
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [userToDelete, setUserToDelete] = useState(null);
 
-  const fetchUsers = useCallback(
-    async ({ showLoading = true } = {}) => {
-      try {
-        if (showLoading) {
-          setLoading(true);
-        } else {
-          setRefreshing(true);
-        }
+  // Fetch data whenever filters, pagination, or requestKey changes.
+  useEffect(() => {
+    let cancelled = false;
+    const controller = new AbortController();
 
+    async function loadUsers() {
+      try {
         const params = {
           page,
           per_page: perPage,
@@ -61,45 +62,63 @@ export default function UsersPage() {
 
         const response = await api.get("/admin/users", {
           params,
+          signal: controller.signal,
         });
 
-        const data = response.data?.data || [];
-        const responseMeta = response.data?.meta;
+        if (cancelled) return;
 
-        setUsers(data);
+        setUsers(response.data?.data || []);
 
-        if (responseMeta) {
-          setMeta(responseMeta);
+        if (response.data?.meta) {
+          setMeta({
+            ...DEFAULT_META,
+            ...response.data.meta,
+          });
+        } else {
+          setMeta(DEFAULT_META);
         }
       } catch (error) {
-        const apiError = getAxiosError(error);
+        if (cancelled || error?.code === "ERR_CANCELED") return;
 
+        const apiError = getAxiosError(error);
         toast.error(apiError.message);
       } finally {
-        setLoading(false);
-        setRefreshing(false);
+        if (!cancelled) {
+          setLoading(false);
+          setRefreshing(false);
+        }
       }
-    },
-    [page, perPage, search, role],
-  );
+    }
 
-  useEffect(() => {
-    fetchUsers();
-  }, [fetchUsers]);
+    loadUsers();
+
+    return () => {
+      cancelled = true;
+      controller.abort();
+    };
+  }, [page, perPage, search, role, requestKey]);
 
   function handleSearchChange(value) {
+    setLoading(true);
     setSearch(value);
     setPage(1);
   }
 
   function handleRoleChange(value) {
+    setLoading(true);
     setRole(value);
     setPage(1);
   }
 
   function handlePerPageChange(value) {
+    setLoading(true);
     setPerPage(Number(value));
     setPage(1);
+  }
+
+  function handlePageChange(nextPage) {
+    setLoading(true);
+    setPage(nextPage);
   }
 
   function handleCreate() {
@@ -117,11 +136,16 @@ export default function UsersPage() {
     setDeleteOpen(true);
   }
 
+  function handleRefresh() {
+    setRefreshing(true);
+    setRequestKey((current) => current + 1);
+  }
+
   function handleFormSuccess() {
     setFormOpen(false);
     setSelectedUser(null);
-
-    fetchUsers({ showLoading: false });
+    setRefreshing(true);
+    setRequestKey((current) => current + 1);
   }
 
   function handleDeleteSuccess() {
@@ -129,23 +153,21 @@ export default function UsersPage() {
     setUserToDelete(null);
 
     if (users.length === 1 && page > 1) {
+      setLoading(true);
       setPage((current) => current - 1);
       return;
     }
 
-    fetchUsers({ showLoading: false });
-  }
-
-  function handleRefresh() {
-    fetchUsers({ showLoading: false });
+    setRefreshing(true);
+    setRequestKey((current) => current + 1);
   }
 
   return (
     <>
-      <div className="mx-auto w-full max-w-7xl">
-        {/* Page Header */}
-        <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div>
+      <main className="mx-auto w-full min-w-0 max-w-7xl">
+        {/* Page header */}
+        <header className="mb-5 flex min-w-0 flex-col gap-3 sm:mb-6 sm:flex-row sm:items-center sm:justify-between">
+          <div className="min-w-0">
             <h1 className="text-2xl font-bold text-gray-900">Users</h1>
 
             <p className="mt-1 text-sm text-gray-600">
@@ -153,35 +175,33 @@ export default function UsersPage() {
             </p>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex w-full shrink-0 items-center gap-2 sm:w-auto">
             <button
               type="button"
               onClick={handleRefresh}
               disabled={refreshing || loading}
-              className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"
+              className="inline-flex h-10 min-w-0 flex-1 items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60 sm:flex-none"
             >
               <RefreshCw
                 size={17}
                 className={refreshing ? "animate-spin" : ""}
               />
-
-              <span className="hidden sm:inline">Refresh</span>
+              <span>Refresh</span>
             </button>
 
             <button
               type="button"
               onClick={handleCreate}
-              className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-red-600 px-4 text-sm font-semibold text-white transition hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-200"
+              className="inline-flex h-10 min-w-0 flex-1 items-center justify-center gap-2 rounded-lg bg-red-600 px-3 text-sm font-semibold text-white transition hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-200 sm:flex-none sm:px-4"
             >
               <Plus size={18} />
-
               <span>Add User</span>
             </button>
           </div>
-        </div>
+        </header>
 
-        {/* Filter */}
-        <div className="mb-4">
+        {/* Filters */}
+        <div className="relative z-0 mb-5 block w-full min-w-0">
           <UserFilter
             search={search}
             role={role}
@@ -193,22 +213,24 @@ export default function UsersPage() {
         </div>
 
         {/* Table */}
-        <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
-          {loading ? (
-            <UserTableSkeleton />
-          ) : (
-            <UserTable
-              users={users}
-              onEdit={handleEdit}
-              onDelete={handleDelete}
-            />
-          )}
+        <div className="relative z-0 block w-full min-w-0 clear-both">
+          <div className="relative block w-full min-w-0 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+            {loading ? (
+              <UserTableSkeleton />
+            ) : (
+              <UserTable
+                users={users}
+                onEdit={handleEdit}
+                onDelete={handleDelete}
+              />
+            )}
+          </div>
         </div>
 
         {/* Pagination */}
         {!loading && (
-          <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <p className="text-sm text-gray-600">
+          <footer className="mt-4 flex min-w-0 flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <p className="min-w-0 text-sm text-gray-600">
               Showing{" "}
               <span className="font-medium text-gray-900">{users.length}</span>{" "}
               of{" "}
@@ -219,39 +241,40 @@ export default function UsersPage() {
             </p>
 
             {meta.total_pages > 1 && (
-              <div className="flex items-center gap-2">
+              <nav
+                aria-label="User pagination"
+                className="flex w-full min-w-0 items-center justify-between gap-2 sm:w-auto sm:justify-start"
+              >
                 <button
                   type="button"
-                  onClick={() => setPage((current) => Math.max(1, current - 1))}
+                  onClick={() => handlePageChange(Math.max(1, page - 1))}
                   disabled={page <= 1}
                   className="h-9 rounded-lg border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   Previous
                 </button>
 
-                <div className="flex h-9 min-w-9 items-center justify-center rounded-lg bg-red-600 px-3 text-sm font-semibold text-white">
+                <span className="flex h-9 min-w-9 shrink-0 items-center justify-center rounded-lg bg-red-600 px-3 text-sm font-semibold text-white">
                   {meta.current_page}
-                </div>
+                </span>
 
                 <button
                   type="button"
                   onClick={() =>
-                    setPage((current) =>
-                      Math.min(meta.total_pages, current + 1),
-                    )
+                    handlePageChange(Math.min(meta.total_pages, page + 1))
                   }
                   disabled={page >= meta.total_pages}
                   className="h-9 rounded-lg border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   Next
                 </button>
-              </div>
+              </nav>
             )}
-          </div>
+          </footer>
         )}
-      </div>
+      </main>
 
-      {/* Create / Edit */}
+      {/* Create / Edit user */}
       {formOpen && (
         <UserForm
           user={selectedUser}
@@ -263,7 +286,7 @@ export default function UsersPage() {
         />
       )}
 
-      {/* Delete */}
+      {/* Delete user */}
       {deleteOpen && userToDelete && (
         <UserDeleteDialog
           user={userToDelete}
