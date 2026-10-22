@@ -2,6 +2,15 @@ import Link from "next/link";
 import { Bike } from "lucide-react";
 import RegisterForm from "@/components/auth/RegisterForm";
 
+export const metadata = {
+  title: "Daftar Akun",
+  description:
+    "Daftar akun MotoCare untuk mulai menggunakan layanan booking servis dan fitur bengkel motor.",
+  robots: {
+    index: false,
+    follow: false,
+  },
+};
 export default function RegisterPage() {
   return (
     <main className="flex min-h-screen items-center justify-center bg-gray-50 px-5 py-10">

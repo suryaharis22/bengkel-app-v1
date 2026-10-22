@@ -2,6 +2,16 @@ import Link from "next/link";
 import { Bike } from "lucide-react";
 import LoginForm from "@/components/auth/LoginForm";
 
+export const metadata = {
+  title: "Login",
+  description:
+    "Masuk ke MotoCare untuk mengakses akun dan layanan manajemen bengkel motor.",
+  robots: {
+    index: false,
+    follow: false,
+  },
+};
+
 export default function LoginPage() {
   return (
     <main className="flex min-h-screen items-center justify-center bg-gray-50 px-5 py-12">
